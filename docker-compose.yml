@@ -1,7 +1,27 @@
+# Запуск всего стека (frontend с hot reload — target dev):
+#   docker compose up --build
+#
+# FRONTEND_TARGET должен быть dev (не runner), иначе пересборка без live-обновления.
+#
+# Если правки не видны — сбросить кэш Next.js:
+#   docker compose down
+#   docker volume rm presentations_ai_frontend_next
+#   docker compose up --build
+#
+# Или с watch (Compose v2.22+): docker compose watch
+#
+# Только БД:
+#   docker compose up mysql phpmyadmin
+#
+# Продакшен-сборка frontend (target runner):
+#   docker compose build --build-arg BUILDKIT_INLINE_CACHE=1 frontend
+#   FRONTEND_TARGET=runner docker compose up --build
+
 services:
   backend:
     build:
       context: ./backend
+      dockerfile: Dockerfile
     container_name: fastapi-backend
     restart: unless-stopped
     env_file:
@@ -13,12 +33,61 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+    command:
+      [
+        "uv",
+        "run",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: ${FRONTEND_TARGET:-dev}
+    container_name: nextjs-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      # На Windows + Docker файловые события с хоста не доходят до контейнера — нужен polling
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+      # .next не с диска Windows — иначе старый кэш; отдельный том в контейнере
+      - frontend_next:/app/.next
+    # Том node_modules отделён от хоста — после изменения package.json нужен npm install в контейнере
+    command: ["sh", "-c", "npm install && npm run dev:docker"]
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend
+          target: /app
+          ignore:
+            - node_modules/
+            - .next/
+        - action: rebuild
+          path: ./frontend/package.json
+    depends_on:
+      backend:
+        condition: service_healthy
 
   mysql:
     image: mysql:8.4
@@ -37,7 +106,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"
+          "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent",
         ]
       interval: 10s
       timeout: 5s
@@ -61,7 +130,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget --quiet --tries=1 --spider http://localhost:80 || exit 1"
+          "wget --quiet --tries=1 --spider http://localhost:80 || exit 1",
         ]
       interval: 30s
       timeout: 10s
@@ -70,3 +139,5 @@ services:
 
 volumes:
   mysql_data:
+  frontend_node_modules:
+  frontend_next:

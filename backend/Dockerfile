@@ -1,19 +1,20 @@
-FROM python:3.9
+FROM python:3.9-slim
 
-# Установка uv
+# curl — для healthcheck в docker-compose
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-# Копируем файлы зависимостей
 COPY pyproject.toml uv.lock* ./
-
-# Устанавливаем зависимости
 RUN uv sync --frozen --no-dev
 
-# Копируем исходники
 COPY . .
 
 EXPOSE 8000
 
+# Запуск API (в compose для dev можно переопределить на --reload)
 CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

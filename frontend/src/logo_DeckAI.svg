@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="25 25 335 105"><defs><linearGradient id="a" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#2563eb"/></linearGradient><filter id="b" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#0f172a" flood-opacity=".1"/></filter></defs><path d="m75 75 50 25-50 25-50-25Z" fill="#0f172a" opacity=".8"/><path d="m75 55 50 25-50 25-50-25Z" fill="#3b82f6" opacity=".9"/><path d="m75 35 50 25-50 25-50-25Z" fill="url(#a)" filter="url(#b)"/><path d="M75 45q0 15 15 15-15 0-15 15 0-15-15-15 15 0 15-15" fill="#fff"/><g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"><text font-size="52" font-weight="800" letter-spacing="-1" transform="translate(160 90)">
+      <tspan fill="#0f172a">AI</tspan>
+      <tspan fill="#2563eb">Deck</tspan>
+    </text><text y="24"  font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="1000" fill="#64748b" letter-spacing="3.5" transform="translate(160 90)">
+      AI PRESENTATIONS
+    </text></g></svg>
