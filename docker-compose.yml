@@ -26,10 +26,13 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-presentations_ai}
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test:
         [
