@@ -5,7 +5,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# --- Разработка: hot reload ---
 FROM base AS dev
 
 COPY . .
@@ -14,7 +13,6 @@ EXPOSE 3000
 
 CMD ["npm", "run", "dev:docker"]
 
-# --- Продакшен ---
 FROM base AS builder
 
 COPY . .

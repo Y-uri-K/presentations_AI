@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { GuestGuard } from "@/components/auth/GuestGuard";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import { AuthShell } from "@/components/auth/AuthShell";
 
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
 
 export default function RegisterPage() {
   return (
+    <GuestGuard>
     <AuthShell
       title="Начните уже сейчас!"
       subtitle="Создайте аккаунт: мы отправим код подтверждения на вашу почту."
@@ -32,5 +34,6 @@ export default function RegisterPage() {
 
       <RegisterForm />
     </AuthShell>
+    </GuestGuard>
   );
 }

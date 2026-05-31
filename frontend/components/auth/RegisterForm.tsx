@@ -6,9 +6,15 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { AuthField } from "@/components/auth/AuthField";
-import { ApiError, requestRegistrationCode, verifyRegistration } from "@/lib/api/auth";
+import {
+  ApiError,
+  requestRegistrationCode,
+  resendRegistrationCode,
+  verifyRegistration,
+} from "@/lib/api/auth";
 import { POST_LOGIN_REDIRECT } from "@/lib/auth/constants";
-import { saveAccessToken } from "@/lib/auth/token";
+import { saveTokens } from "@/lib/auth/token";
+import { useEmailSendCooldown } from "@/lib/hooks/useEmailSendCooldown";
 import {
   registerCompleteSchema,
   registerRequestSchema,
@@ -21,6 +27,7 @@ export function RegisterForm() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSendingCode, setIsSendingCode] = useState(false);
+  const { isOnCooldown, cooldownSeconds, applyRateLimitError } = useEmailSendCooldown();
 
   const {
     register,
@@ -68,11 +75,16 @@ export function RegisterForm() {
     }
 
     try {
-      const response = await requestRegistrationCode(parsed.data);
+      const response = codeSent
+        ? await resendRegistrationCode(parsed.data.email)
+        : await requestRegistrationCode(parsed.data);
       setCodeSent(true);
       setStatusMessage(response.message);
     } catch (error) {
-      setFormError(error instanceof ApiError ? error.message : "Не удалось отправить код");
+      const rateLimitMessage = applyRateLimitError(error);
+      setFormError(
+        rateLimitMessage ?? (error instanceof ApiError ? error.message : "Не удалось отправить код"),
+      );
     } finally {
       setIsSendingCode(false);
     }
@@ -92,7 +104,7 @@ export function RegisterForm() {
         email: data.email,
         code: data.verification_code,
       });
-      saveAccessToken(tokenResponse.access_token);
+      saveTokens(tokenResponse.access_token, tokenResponse.refresh_token);
       router.push(POST_LOGIN_REDIRECT);
     } catch (error) {
       setFormError(error instanceof ApiError ? error.message : "Не удалось завершить регистрацию");
@@ -180,10 +192,16 @@ export function RegisterForm() {
       <button
         type="button"
         onClick={handleSendCode}
-        disabled={isSendingCode || isSubmitting}
+        disabled={isSendingCode || isSubmitting || isOnCooldown}
         className="w-full rounded-xl border border-sky-200 bg-white px-4 py-3 text-sm font-semibold text-[var(--primary)] transition-colors hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSendingCode ? "Отправка…" : codeSent ? "Отправить код снова" : "Получить код на почту"}
+        {isOnCooldown
+          ? `Повторная отправка через ${cooldownSeconds} сек.`
+          : isSendingCode
+            ? "Отправка…"
+            : codeSent
+              ? "Отправить код снова"
+              : "Получить код на почту"}
       </button>
 
       <button

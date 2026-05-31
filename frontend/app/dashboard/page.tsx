@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppHeader } from "@/components/dashboard/AppHeader";
+import { DashboardClient } from "@/components/dashboard/DashboardClient";
 import { LogoCorner } from "@/components/LogoCorner";
 
 export const metadata: Metadata = {
@@ -19,27 +20,12 @@ export default function DashboardPage() {
             Ваш рабочий стол
           </h1>
           <p className="mt-3 max-w-xl text-sky-50/90 leading-relaxed">
-            Здесь появятся ваши презентации и инструменты генерации. Страница-заглушка для
-            переадресации после входа.
+            Опишите тему презентации, приложите материалы Word, PDF, Markdown или TXT и выберите
+            шаблон оформления.
           </p>
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          {[
-            { title: "Мои презентации", desc: "Список и управление проектами" },
-            { title: "Новая презентация", desc: "Создание с помощью ИИ" },
-            { title: "Шаблоны", desc: "Ваши сохранённые шаблоны" },
-          ].map((item) => (
-            <div
-              key={item.title}
-              className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-slate-400"
-            >
-              <h2 className="font-semibold text-slate-700">{item.title}</h2>
-              <p className="mt-1 text-sm">{item.desc}</p>
-              <p className="mt-4 text-xs uppercase tracking-wide">Скоро</p>
-            </div>
-          ))}
-        </div>
+        <DashboardClient />
       </main>
       <LogoCorner />
     </div>

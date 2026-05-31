@@ -1,6 +1,5 @@
 FROM python:3.9-slim
 
-# curl — для healthcheck в docker-compose
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
@@ -16,5 +15,4 @@ COPY . .
 
 EXPOSE 8000
 
-# Запуск API (в compose для dev можно переопределить на --reload)
 CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

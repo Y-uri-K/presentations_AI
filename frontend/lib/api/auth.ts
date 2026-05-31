@@ -2,11 +2,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export class ApiError extends Error {
   status: number;
+  retryAfterSeconds?: number;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, retryAfterSeconds?: number) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -48,7 +50,13 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
-    throw new ApiError(parseApiError(errorData, "Ошибка запроса"), response.status);
+    const retryAfterHeader = response.headers.get("Retry-After");
+    const retryAfterSeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : undefined;
+    throw new ApiError(
+      parseApiError(errorData, "Ошибка запроса"),
+      response.status,
+      Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined,
+    );
   }
 
   return (await response.json()) as T;
@@ -76,8 +84,17 @@ export async function checkEmailAvailable(email: string): Promise<boolean> {
   return fetchAvailability("/api/auth/check-email", "email", email.trim().toLowerCase());
 }
 
-type MessageResponse = { message: string };
-type TokenResponse = { access_token: string; token_type: string };
+export type MessageResponse = { message: string };
+export type TokenResponse = {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+};
+export type UserMeResponse = {
+  id: number;
+  username: string;
+  email: string;
+};
 
 export async function requestRegistrationCode(payload: {
   username: string;
@@ -105,4 +122,62 @@ export async function verifyRegistration(payload: {
     email: payload.email.trim().toLowerCase(),
     code: payload.code.trim(),
   });
+}
+
+export async function login(payload: {
+  username: string;
+  password: string;
+}): Promise<TokenResponse> {
+  return apiPost<TokenResponse>("/api/auth/login", {
+    username: payload.username.trim(),
+    password: payload.password,
+  });
+}
+
+export async function refreshAuthTokens(refreshToken: string): Promise<TokenResponse> {
+  return apiPost<TokenResponse>("/api/auth/refresh", {
+    refresh_token: refreshToken,
+  });
+}
+
+export async function requestPasswordResetCode(email: string): Promise<MessageResponse> {
+  return apiPost<MessageResponse>("/api/auth/password-reset/request", {
+    email: email.trim().toLowerCase(),
+  });
+}
+
+export async function resendPasswordResetCode(email: string): Promise<MessageResponse> {
+  return apiPost<MessageResponse>("/api/auth/password-reset/resend", {
+    email: email.trim().toLowerCase(),
+  });
+}
+
+export async function confirmPasswordReset(payload: {
+  email: string;
+  code: string;
+  password: string;
+  password_confirm: string;
+}): Promise<MessageResponse> {
+  return apiPost<MessageResponse>("/api/auth/password-reset/confirm", {
+    email: payload.email.trim().toLowerCase(),
+    code: payload.code.trim(),
+    password: payload.password,
+    password_confirm: payload.password_confirm,
+  });
+}
+
+export async function fetchMe(accessToken: string): Promise<UserMeResponse> {
+  const response = await fetch(`${API_URL}/api/auth/me`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new ApiError(parseApiError(errorData, "Ошибка авторизации"), response.status);
+  }
+
+  return (await response.json()) as UserMeResponse;
 }

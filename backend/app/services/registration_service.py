@@ -7,14 +7,16 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.core.time_utils import utcnow
 from app.core.security import (
-    create_access_token,
+    create_token_pair,
     generate_verification_code,
     hash_password,
     hash_verification_code,
     verify_verification_code,
 )
 from app.models import PendingRegistration, User, VerificationCode
+from app.services.email_cooldown import enforce_email_send_cooldown
 from app.services.email_service import send_verification_code_email
 
 settings = get_settings()
@@ -28,10 +30,6 @@ def normalize_username(username: str) -> str:
 
 def normalize_email(email: str) -> str:
     return email.strip().lower()
-
-
-def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def user_username_exists(db: Session, username: str) -> bool:
@@ -79,6 +77,7 @@ def validate_registration_fields(username: str, email: str, password: str) -> No
 
 
 def _issue_verification_code(db: Session, email: str) -> str:
+    enforce_email_send_cooldown(db, email=email, purpose="register")
     code = generate_verification_code()
     expires_at = utcnow() + timedelta(minutes=settings.verification_code_expire_minutes)
 
@@ -165,7 +164,7 @@ def resend_registration_code(db: Session, *, email: str) -> None:
     db.commit()
 
 
-def complete_registration(db: Session, *, email: str, code: str) -> str:
+def complete_registration(db: Session, *, email: str, code: str) -> tuple[str, str]:
     email = normalize_email(email)
     pending = db.scalar(select(PendingRegistration).where(PendingRegistration.email == email))
     if not pending:
@@ -221,4 +220,4 @@ def complete_registration(db: Session, *, email: str, code: str) -> str:
     db.commit()
     db.refresh(user)
 
-    return create_access_token(user_id=user.id, username=user.username, email=user.email)
+    return create_token_pair(user_id=user.id, username=user.username, email=user.email)
