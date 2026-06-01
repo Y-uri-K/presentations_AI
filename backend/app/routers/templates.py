@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.core.content_disposition import attachment_content_disposition
 from app.core.deps import get_current_user
 from app.database import get_db
 from app.models import User
@@ -58,7 +59,7 @@ def download_template(
         template_id=template_id,
     )
     headers = {
-        "Content-Disposition": f'attachment; filename="{template.original_filename}"',
+        "Content-Disposition": attachment_content_disposition(template.original_filename),
     }
     return Response(
         content=template.file_data,

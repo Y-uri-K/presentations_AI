@@ -39,17 +39,39 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.0-flash"
     gemini_timeout_seconds: int = 120
 
+    polza_api_key: str = ""
+    polza_base_url: str = "https://polza.ai/api/v1"
+    polza_image_model: str = "google/gemini-2.5-flash-image"
+    polza_chat_model: str = "google/gemini-3.5-flash"
+    polza_chat_timeout_seconds: int = 120
+    polza_image_timeout_seconds: int = 180
+    polza_image_poll_interval_seconds: float = 4.0
+
     mimi_api_key: str = ""
     mimi_base_url: str = "https://api.xiaomimimo.com/v1"
     mimi_model: str = "mimo-v2.5-pro"
-    mimi_timeout_seconds: int = 120
+    mimi_timeout_seconds: int = 300
 
     template_max_size_mb: int = 25
     template_max_count_per_user: int = 50
 
     presentation_source_max_size_mb: int = 10
     presentation_source_max_files: int = 5
-    presentation_default_agent: str = "mimo"
+    presentation_default_agent: str = "gemini"
+    presentation_max_slides: int = 10
+    presentation_max_generated_images: int = 2
+    presentation_template_ai_analysis: bool = True
+    presentation_pptx_max_size_mb: int = 50
+    presentation_use_gamma_pipeline: bool = True
+    presentation_use_template_driven: bool = True
+    presentation_blueprint_llm_phase2: bool = False
+    presentation_blueprint_use_llm: bool = False
+    presentation_blueprint_use_polza: bool = True
+    presentation_language: str = "Русский"
+    presentation_tone: str = "деловой"
+    presentation_text_content: str = "concise"
+    presentation_audience: str = "широкая аудитория"
+    presentation_scenario: str = "бизнес-презентация"
 
     @property
     def database_url(self) -> str:

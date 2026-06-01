@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, LargeBinary, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, JSON, LargeBinary, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -61,3 +61,48 @@ class UserTemplate(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class Presentation(Base):
+    __tablename__ = "presentations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    template_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("user_templates.id", ondelete="SET NULL"), nullable=True
+    )
+    agent_id: Mapped[str] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(255), default="Презентация")
+    prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    outline: Mapped[str] = mapped_column(Text)
+    slides_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="draft")
+    build_stage: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    pptx_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    source_filenames: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    source_files: Mapped[list["PresentationSourceFile"]] = relationship(
+        back_populates="presentation",
+        cascade="all, delete-orphan",
+    )
+
+
+class PresentationSourceFile(Base):
+    __tablename__ = "presentation_source_files"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    presentation_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("presentations.id", ondelete="CASCADE"), index=True
+    )
+    filename: Mapped[str] = mapped_column(String(255))
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    presentation: Mapped["Presentation"] = relationship(back_populates="source_files")

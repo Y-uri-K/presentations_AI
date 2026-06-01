@@ -1,6 +1,6 @@
 import type { AgentId, AgentInfo } from "@/lib/api/agents";
 
-const AGENT_PRIORITY: AgentId[] = ["mimo", "ollama", "gemini"];
+const AGENT_PRIORITY: AgentId[] = ["gemini", "polza", "mimo", "ollama"];
 
 export function pickPreferredAgent(agents: AgentInfo[]): AgentId | null {
   for (const id of AGENT_PRIORITY) {

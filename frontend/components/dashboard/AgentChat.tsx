@@ -13,7 +13,8 @@ import { ApiError } from "@/lib/api/auth";
 
 const AGENT_LABELS: Record<AgentId, string> = {
   ollama: "Ollama",
-  gemini: "Gemini",
+  gemini: "Gemini 3.5 Flash (Polza)",
+  polza: "Gemini 3.5 Flash (Polza)",
   mimo: "MiMo",
 };
 

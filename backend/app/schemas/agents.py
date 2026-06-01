@@ -4,7 +4,7 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-AgentId = Literal["ollama", "gemini", "mimo"]
+AgentId = Literal["ollama", "gemini", "mimo", "polza"]
 
 
 class AgentInfoResponse(BaseModel):

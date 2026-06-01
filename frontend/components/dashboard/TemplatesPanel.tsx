@@ -62,6 +62,7 @@ export function TemplatesPanel() {
     try {
       const created = await uploadTemplate(file);
       setTemplates((prev) => [created, ...prev]);
+      selectTemplate(created);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось загрузить шаблон");
     } finally {

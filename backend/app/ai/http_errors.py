@@ -16,7 +16,7 @@ def raise_provider_http_error(provider_name: str, exc: httpx.HTTPStatusError) ->
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=(
                 f"Исчерпана квота {provider_name}. "
-                "Подождите и повторите позже или выберите другой ИИ (MiMo / Ollama)."
+                "Подождите и повторите позже или выберите Gemini 3.5 Flash (Polza) / MiMo / Ollama."
             ),
         ) from exc
 
