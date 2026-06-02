@@ -13,7 +13,6 @@ from app.services.pptx_fonts import (
     apply_font_family_preserve_to_slide,
 )
 from app.services.slide_palette_colors import SLIDE_BACKGROUND_WHITE, palette_rgb
-from app.services.slide_renderers.text_frame import configure_text_frame_wrap
 from app.services.template_style_extractor import TextStyleHint, UserTemplateStyle
 
 
@@ -160,7 +159,13 @@ def _style_text_frame(
     default_size_pt: float,
     preserve_existing_size: bool = False,
 ) -> None:
-    configure_text_frame_wrap(text_frame)
+    """
+    Только шрифт и цвет. Не вызывать configure_text_frame_wrap — он ставит
+    MSO_AUTO_SIZE.NONE и обрезает текст в карточках после SHAPE_TO_FIT_TEXT.
+    """
+    autosize = getattr(text_frame, "auto_size", None)
+    word_wrap = getattr(text_frame, "word_wrap", True)
+
     size_pt = hint.font_size_pt or default_size_pt
     color = hint.rgb or fallback_rgb
 
@@ -183,3 +188,7 @@ def _style_text_frame(
                     run.font.color.rgb = color
                 except AttributeError:
                     pass
+
+    text_frame.word_wrap = word_wrap
+    if autosize is not None:
+        text_frame.auto_size = autosize

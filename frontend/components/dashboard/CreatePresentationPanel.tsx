@@ -33,7 +33,10 @@ function buildStageLabel(stage: string | null): string {
     done: "готово",
     failed: "ошибка",
   };
-  return (stage && labels[stage]) || stage || "обработка";
+  if (!stage) {
+    return "обработка";
+  }
+  return labels[stage] ?? "обработка";
 }
 
 const AGENT_LABELS: Record<AgentId, string> = {

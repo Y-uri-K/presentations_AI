@@ -3,14 +3,14 @@ from __future__ import annotations
 from app.schemas.semantic_slides import CardsSlide
 from app.services.slide_renderers.context import RenderContext
 from app.services.slide_templates._helpers import (
-    render_cards_featured,
-    render_cards_grid,
+    _card_pairs,
     render_cards_horizontal,
-    render_cards_text_column,
-    render_sidebar_list,
     render_with_title,
 )
+from app.services.slide_renderers.content_cell import render_equal_cells_stack
+from app.services.slide_renderers.layout_bounds import content_bounds_for_slide
 from app.services.slide_templates.image_layouts import render_image_column_cards
+from app.services.slide_templates.visual_layouts import render_dense_grid, render_hero_split
 
 
 def render_cards(ctx: RenderContext, variant: str) -> None:
@@ -21,13 +21,12 @@ def render_cards(ctx: RenderContext, variant: str) -> None:
         return
 
     render_with_title(ctx)
-    if variant == "featured":
-        render_cards_featured(ctx, cards)
+    if variant == "hero_featured":
+        render_hero_split(ctx, cards)
     elif variant == "horizontal_strip":
         render_cards_horizontal(ctx, cards)
     elif variant == "sidebar_list":
-        render_sidebar_list(ctx, [(c.title, c.text) for c in cards])
-    elif variant in ("mosaic", "staggered"):
-        render_cards_text_column(ctx, cards)
+        bounds = content_bounds_for_slide(ctx)
+        render_equal_cells_stack(ctx, bounds, _card_pairs(cards)[:4])
     else:
-        render_cards_grid(ctx, cards)
+        render_dense_grid(ctx, cards)

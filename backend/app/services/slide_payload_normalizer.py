@@ -232,7 +232,13 @@ def _normalize_cards(slide: Dict[str, Any]) -> None:
         normalized.append(
             {
                 "title": _as_str(card.get("title") or card.get("heading") or f"Пункт {index + 1}"),
-                "text": _as_str(card.get("text") or card.get("body") or card.get("description")),
+                "text": _as_str(
+                    card.get("text")
+                    or card.get("body")
+                    or card.get("description")
+                    or card.get("content")
+                    or card.get("title")
+                ),
                 "highlight": highlight,
             }
         )

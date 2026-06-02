@@ -59,7 +59,8 @@ class Settings(BaseSettings):
     presentation_source_max_files: int = 5
     presentation_default_agent: str = "gemini"
     presentation_max_slides: int = 10
-    presentation_max_generated_images: int = 2
+    presentation_max_generated_images: int = 4
+    presentation_source_enrichment: bool = True
     presentation_template_ai_analysis: bool = True
     presentation_pptx_max_size_mb: int = 50
     presentation_use_gamma_pipeline: bool = True

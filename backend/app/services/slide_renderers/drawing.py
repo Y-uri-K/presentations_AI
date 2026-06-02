@@ -95,7 +95,13 @@ def _fill_card_text(
     text_frame.margin_top = Pt(8)
     text_frame.margin_bottom = Pt(8)
 
-    show_heading = heading and heading not in ("—", "-", "•") and heading != body and len(heading) < 80
+    show_heading = (
+        heading
+        and heading not in ("—", "-", "•")
+        and heading != body
+        and len(heading) <= 50
+        and len(heading.split()) <= 10
+    )
     p1 = text_frame.paragraphs[0]
     p1.alignment = PP_ALIGN.LEFT
     if show_heading:
@@ -106,17 +112,37 @@ def _fill_card_text(
         r1.font.color.rgb = (
             palette_rgb(ctx.user_style, "on_accent") if accent else palette_rgb(ctx.user_style, "dark")
         )
-        p_body = text_frame.add_paragraph()
+        paragraphs = body.split("\n")
+        for line_index, line in enumerate(paragraphs):
+            line = line.strip()
+            if not line:
+                continue
+            p_body = text_frame.add_paragraph()
+            p_body.alignment = PP_ALIGN.LEFT
+            r2 = p_body.add_run()
+            r2.text = line
+            r2.font.size = Pt(11 if not accent else 12)
+            r2.font.color.rgb = (
+                palette_rgb(ctx.user_style, "on_accent") if accent else palette_rgb(ctx.user_style, "muted")
+            )
     else:
-        p_body = p1
-    p_body.alignment = PP_ALIGN.LEFT
-    r2 = p_body.add_run()
-    r2.text = body
-    r2.font.size = Pt(11 if not accent else 12)
-    r2.font.color.rgb = (
-        palette_rgb(ctx.user_style, "on_accent") if accent else palette_rgb(ctx.user_style, "muted")
-    )
+        paragraphs = [p.strip() for p in body.split("\n") if p.strip()] or [body]
+        for line_index, line in enumerate(paragraphs):
+            p = p1 if line_index == 0 else text_frame.add_paragraph()
+            p.alignment = PP_ALIGN.LEFT
+            r = p.add_run()
+            r.text = line
+            r.font.size = Pt(11 if not accent else 12)
+            r.font.color.rgb = (
+                palette_rgb(ctx.user_style, "on_accent") if accent else palette_rgb(ctx.user_style, "muted")
+            )
     apply_font_family_preserve_to_text_frame(text_frame)
+
+
+def _clear_text_frame(text_frame) -> None:
+    """Пустая фигура без видимого текста."""
+    text_frame.clear()
+    text_frame.paragraphs[0].text = ""
 
 
 def add_card(
@@ -131,51 +157,25 @@ def add_card(
     accent: bool = False,
     style: str = "rounded",
 ) -> None:
+    """Карточка на всю выделенную область (делегат content_cell)."""
+    del style
+    from app.services.slide_renderers.content_cell import render_content_cell
+
     heading = normalize_content_text(heading) or ""
     body = normalize_content_text(body) or heading
     if not body or body in ("—", "-"):
         return
-
-    need_h = card_content_height_pct(heading, body, width_pct)
-    height_pct = max(height_pct, need_h)
-    left, width = _emu_fraction(ctx.slide_width, left_pct, left_pct + width_pct)
-    top, height = _emu_fraction(ctx.slide_height, top_pct, top_pct + height_pct)
-    shape_type = MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE
-    if style in ("rectangle", "flat", "sidebar"):
-        shape_type = MSO_AUTO_SHAPE_TYPE.RECTANGLE
-
-    card_left = int(left)
-    card_width = int(width)
-    if style == "sidebar":
-        stripe_w = max(int(width * 0.04), Emu(Inches(0.06)))
-        stripe = ctx.slide.shapes.add_shape(
-            MSO_AUTO_SHAPE_TYPE.RECTANGLE,
-            left,
-            top,
-            stripe_w,
-            height,
-        )
-        stripe.fill.solid()
-        stripe.fill.fore_color.rgb = ctx.accent
-        stripe.line.fill.background()
-        card_left = int(left) + stripe_w
-        card_width = int(width) - stripe_w
-
-    shape = ctx.slide.shapes.add_shape(shape_type, card_left, top, card_width, height)
-    fill = shape.fill
-    fill.solid()
-    fill_rgb = None
-    if accent:
-        fill_rgb = ctx.accent
-        fill.fore_color.rgb = fill_rgb
-    elif style == "sidebar":
-        fill_rgb = palette_rgb(ctx.user_style, "card")
-        fill.fore_color.rgb = fill_rgb
-    else:
-        fill_rgb = palette_rgb(ctx.user_style, "card")
-        fill.fore_color.rgb = fill_rgb
-    shape.line.color.rgb = ctx.accent
-    _fill_card_text(shape.text_frame, heading=heading, body=body, accent=accent, ctx=ctx)
+    render_content_cell(
+        ctx,
+        left_pct=left_pct,
+        top_pct=top_pct,
+        width_pct=width_pct,
+        height_pct=height_pct,
+        heading=heading,
+        body=body,
+        accent=accent,
+        rounded=True,
+    )
 
 
 def add_card_stack(
@@ -187,37 +187,28 @@ def add_card_stack(
     bottom_pct: float,
     items: Sequence[Tuple[str, str]],
     accent_first: bool = True,
+    accent_index: Optional[int] = None,
     style: str = "sidebar",
     gap_pct: float = 0.014,
 ) -> None:
-    """Вертикальный стек фигур-карточек: у каждой своя высота под полный текст."""
+    """Вертикальный стек: равные доли высоты, полный текст в каждой ячейке."""
+    del style, gap_pct
+    from app.services.slide_renderers.content_cell import render_equal_cells_stack
+    from app.services.slide_renderers.layout_bounds import ContentBounds
+
     visible = [(normalize_content_text(h), normalize_content_text(b)) for h, b in items]
     visible = [(h, b) for h, b in visible if b and b not in ("—", "-")]
     if not visible:
         return
-
-    heights = [card_content_height_pct(h, b, width_pct) for h, b in visible]
-    gaps = gap_pct * max(len(visible) - 1, 0)
-    available = bottom_pct - top_pct
-    total = sum(heights) + gaps
-    if total > available and sum(heights) > 0:
-        scale = max(0.5, (available - gaps) / sum(heights))
-        heights = [max(MIN_CARD_HEIGHT_PCT, h * scale) for h in heights]
-
-    y = top_pct
-    for index, ((heading, body), hp) in enumerate(zip(visible, heights)):
-        add_card(
-            ctx,
-            left_pct=left_pct,
-            top_pct=y,
-            width_pct=width_pct,
-            height_pct=hp,
-            heading=heading,
-            body=body,
-            accent=accent_first and index == 0,
-            style=style,
-        )
-        y += hp + gap_pct
+    if accent_index is None:
+        accent_index = 0 if accent_first else -1
+    bounds = ContentBounds(
+        left_pct=left_pct,
+        right_pct=left_pct + width_pct,
+        top_pct=top_pct,
+        bottom_pct=bottom_pct,
+    )
+    render_equal_cells_stack(ctx, bounds, visible, accent_index=accent_index)
 
 
 def add_stacked_text_block(
@@ -278,43 +269,20 @@ def add_metric_block(
     label: str,
     note: Optional[str] = None,
 ) -> None:
-    note_text = (note or "").strip()
-    block = f"{value}\n{label}" + (f"\n{note_text}" if note_text else "")
-    need_h = card_content_height_pct(value, block, width_pct)
-    height_pct = max(height_pct, need_h)
+    from app.services.slide_renderers.content_cell import render_content_cell
 
-    left, width = _emu_fraction(ctx.slide_width, left_pct, left_pct + width_pct)
-    top, height = _emu_fraction(ctx.slide_height, top_pct, top_pct + height_pct)
-    shape = ctx.slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE, left, top, width, height)
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = palette_rgb(ctx.user_style, "background")
-    shape.line.color.rgb = ctx.accent
-
-    tf = shape.text_frame
-    configure_text_frame_wrap(tf, anchor=MSO_ANCHOR.TOP)
-    p_val = tf.paragraphs[0]
-    p_val.alignment = PP_ALIGN.CENTER
-    r_val = p_val.add_run()
-    r_val.text = value
-    r_val.font.bold = True
-    r_val.font.size = Pt(28)
-    r_val.font.color.rgb = ctx.accent
-
-    p_lbl = tf.add_paragraph()
-    p_lbl.alignment = PP_ALIGN.CENTER
-    r_lbl = p_lbl.add_run()
-    r_lbl.text = label
-    r_lbl.font.size = Pt(12)
-    r_lbl.font.color.rgb = palette_rgb(ctx.user_style, "dark")
-
-    if note:
-        p_note = tf.add_paragraph()
-        p_note.alignment = PP_ALIGN.CENTER
-        r_note = p_note.add_run()
-        r_note.text = note
-        r_note.font.size = Pt(10)
-        r_note.font.color.rgb = palette_rgb(ctx.user_style, "muted")
-    apply_font_family_preserve_to_text_frame(tf)
+    render_content_cell(
+        ctx,
+        left_pct=left_pct,
+        top_pct=top_pct,
+        width_pct=width_pct,
+        height_pct=height_pct,
+        heading=label,
+        body=(note or "").strip(),
+        kpi_value=value,
+        accent=False,
+        rounded=True,
+    )
 
 
 def add_horizontal_timeline(
@@ -382,36 +350,26 @@ def add_horizontal_timeline(
 
 
 def add_process_flow(ctx: RenderContext, steps: Sequence[Tuple[str, Optional[str]]]) -> None:
+    from app.services.slide_renderers.content_cell import render_equal_cells_row
+    from app.services.slide_renderers.layout_bounds import content_bounds_for_slide
+
     count = len(steps)
     if count == 0:
         return
-    gap = 0.02
-    width_each = (0.88 - gap * (count - 1)) / count
-    top = 0.4
-    for index, (title, description) in enumerate(steps):
-        left = 0.06 + index * (width_each + gap)
-        add_card(
-            ctx,
-            left_pct=left,
-            top_pct=top,
-            width_pct=width_each,
-            height_pct=0.42,
-            heading=title,
-            body=description or "",
-            accent=index == count - 1,
-        )
-        if index < count - 1:
-            arrow_left = left + width_each + gap * 0.25
-            arrow = ctx.slide.shapes.add_shape(
-                MSO_AUTO_SHAPE_TYPE.RIGHT_ARROW,
-                int(ctx.slide_width * arrow_left),
-                int(ctx.slide_height * (top + 0.16)),
-                Emu(Inches(0.35)),
-                Emu(Inches(0.2)),
-            )
-            arrow.fill.solid()
-            arrow.fill.fore_color.rgb = ctx.accent
-            arrow.line.fill.background()
+    bounds = content_bounds_for_slide(ctx)
+    items = [
+        (title, (description or "").strip() or title, None)
+        for title, description in steps[:4]
+    ]
+    render_equal_cells_row(
+        ctx,
+        left_pct=bounds.left_pct,
+        top_pct=bounds.top_pct,
+        width_pct=bounds.right_pct - bounds.left_pct,
+        height_pct=bounds.bottom_pct - bounds.top_pct,
+        items=items,
+        accent_index=count - 1,
+    )
 
 
 def add_table(

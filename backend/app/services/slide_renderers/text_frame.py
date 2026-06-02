@@ -35,4 +35,12 @@ def configure_text_frame_autofit_grow(
     text_frame.word_wrap = True
     text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
     text_frame.vertical_anchor = anchor
-    _apply_body_pr(text_frame, anchor=anchor)
+    try:
+        body_pr = text_frame._txBody.bodyPr
+        body_pr.set("wrap", "square")
+        body_pr.set("anchor", "t" if anchor == MSO_ANCHOR.TOP else "ctr")
+        for child in list(body_pr):
+            if child.tag.endswith("}noAutofit") or child.tag.endswith("}normAutofit"):
+                body_pr.remove(child)
+    except AttributeError:
+        pass

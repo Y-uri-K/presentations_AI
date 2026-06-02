@@ -113,9 +113,10 @@ def blueprint_from_outline(
             cards = [
                 BlueprintCard(
                     title=card_title_from_text(text, index=card_index),
-                    text=text,
+                    text=text.strip(),
                 )
                 for card_index, text in enumerate(card_items[:6], start=1)
+                if text and text.strip()
             ]
             slides.append(
                 BlueprintSlide(

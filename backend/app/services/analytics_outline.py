@@ -9,6 +9,7 @@ from app.schemas.template_blueprint import (
     BlueprintSlide,
     BlueprintTable,
 )
+from app.services.slide_text_limits import MAX_BODY_CHARS, MAX_TITLE_CHARS
 
 _METRIC_VALUE_RE = re.compile(
     r"(\d[\d\s,.]*)\s*(%|₽|\$|€|pp|п\.п\.|руб\.?|тыс\.?|млн\.?|млрд\.?)?",
@@ -69,21 +70,26 @@ def extract_metrics_from_bullets(bullets: List[str]) -> List[BlueprintMetric]:
         if labeled:
             metrics.append(
                 BlueprintMetric(
-                    label=labeled.group(1).strip()[:48],
-                    value=labeled.group(2).strip()[:24],
+                    label=labeled.group(1).strip()[:MAX_TITLE_CHARS],
+                    value=labeled.group(2).strip()[:120],
                 )
             )
             continue
         numbers = _METRIC_VALUE_RE.findall(line)
         if numbers:
             value = numbers[0][0].strip() + (numbers[0][1] or "")
-            label = _METRIC_VALUE_RE.sub("", line, count=1).strip(" -—:") or line[:48]
-            metrics.append(BlueprintMetric(value=value[:24], label=label[:48]))
+            label = _METRIC_VALUE_RE.sub("", line, count=1).strip(" -—:") or line
+            metrics.append(
+                BlueprintMetric(
+                    value=value[:120],
+                    label=label[:MAX_BODY_CHARS],
+                )
+            )
     while len(metrics) < 2 and bullets:
         metrics.append(
             BlueprintMetric(
                 value="—",
-                label=bullets[min(len(metrics), len(bullets) - 1)][:48],
+                label=bullets[min(len(metrics), len(bullets) - 1)][:MAX_BODY_CHARS],
             )
         )
     return metrics[:6]

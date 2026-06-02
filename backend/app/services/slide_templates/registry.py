@@ -3,23 +3,22 @@ from __future__ import annotations
 from typing import Dict, List
 
 VARIANTS: Dict[str, List[str]] = {
-    "cards": ["grid", "featured", "horizontal_strip", "sidebar_list", "mosaic", "staggered"],
-    "diagram": ["stacked", "two_column", "hub_grid", "callout_lead", "pyramid", "flow_chain"],
-    "timeline": ["horizontal_line", "vertical_rail", "step_cards", "milestones"],
-    "process": ["chevrons", "vertical_pipe", "step_badges", "funnel"],
-    "comparison": ["split_columns", "versus_center", "stacked_rows", "mirror_bars"],
-    "kpi": ["metric_grid", "hero_metric", "accent_row", "kpi_trio", "delta_cards"],
-    "conclusion": ["stack", "full_banners", "numbered", "checklist"],
-    "table": ["wide", "compact", "striped", "key_column"],
-    "agenda": ["grid", "vertical_list", "numbered_path"],
-    "problem": ["grid", "accent_row", "severity_ladder"],
-    "goals": ["grid", "featured", "target_rings"],
-    "results": ["metric_grid", "hero_metric", "trend_row"],
+    "cards": ["visual_grid", "hero_featured", "sidebar_list", "horizontal_strip"],
+    "diagram": ["hub_grid", "two_column", "flow_chain"],
+    "timeline": ["step_cards", "horizontal_line", "vertical_rail", "milestones"],
+    "process": ["chevrons", "step_badges", "vertical_pipe", "funnel"],
+    "comparison": ["versus_center", "split_columns", "stacked_rows", "mirror_bars"],
+    "kpi": ["metric_grid", "hero_metric", "accent_row", "kpi_trio"],
+    "conclusion": ["visual_stack", "numbered", "checklist"],
+    "table": ["wide", "compact", "striped"],
+    "agenda": ["visual_path", "vertical_list", "numbered_path"],
+    "problem": ["visual_ladder", "accent_row", "visual_grid"],
+    "goals": ["target_rings", "hero_featured", "visual_grid"],
+    "results": ["hero_metric", "metric_grid", "accent_row"],
     "title": ["center"],
     "thank_you": ["center"],
 }
 
-# Макеты только для слайдов с иллюстрацией — узкая колонка текста, без захода на картинку
 IMAGE_VARIANTS: Dict[str, List[str]] = {
     "cards": ["image_column"],
     "diagram": ["image_visual_split"],

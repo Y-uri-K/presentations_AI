@@ -4,18 +4,26 @@ from __future__ import annotations
 
 _MARGIN_LEFT_PCT = 0.06
 _USABLE_WIDTH_PCT = 0.88
-SLIDE_HALF_WIDTH_PCT = _USABLE_WIDTH_PCT / 2  # 0.44 — половина слайда под картинку/текст
+SLIDE_HALF_WIDTH_PCT = _USABLE_WIDTH_PCT / 2
 COLUMN_GAP_PCT = 0.02
 
 MIN_CARD_HEIGHT_PCT = 0.10
-LINE_HEIGHT_PCT = 0.042
-_CARD_PAD_LINES = 1
+LINE_HEIGHT_PCT = 0.052
+_CARD_PAD_LINES = 2
+_HEIGHT_SAFETY = 1.75
+
+
+def effective_text_width_pct(width_pct: float, *, style: str = "rounded") -> float:
+    """Ширина колонки текста с учётом полосы sidebar."""
+    if style == "sidebar":
+        return width_pct * 0.88
+    return width_pct * 0.94
 
 
 def chars_per_line(width_pct: float, *, font_pt: float = 11) -> int:
-    """Грубая оценка символов в строке для кириллицы (с запасом под перенос)."""
+    """Консервативная оценка — больше строк, выше фигура."""
     del font_pt
-    return max(18, int(width_pct * 82))
+    return max(14, int(width_pct * 68))
 
 
 def estimate_block_height_pct(
@@ -28,23 +36,27 @@ def estimate_block_height_pct(
     if not cleaned:
         return MIN_CARD_HEIGHT_PCT
     cpl = chars_per_line(width_pct)
-    lines = max(1, (len(cleaned) + cpl - 1) // cpl) + extra_lines + _CARD_PAD_LINES
-    return min(0.48, MIN_CARD_HEIGHT_PCT + lines * LINE_HEIGHT_PCT)
+    wrapped_lines = sum(max(1, (len(part) + cpl - 1) // cpl) for part in cleaned.split("\n"))
+    lines = wrapped_lines + extra_lines + _CARD_PAD_LINES
+    return MIN_CARD_HEIGHT_PCT + lines * LINE_HEIGHT_PCT
 
 
-def card_content_height_pct(heading: str, body: str, width_pct: float) -> float:
+def card_content_height_pct(
+    heading: str,
+    body: str,
+    width_pct: float,
+    *,
+    style: str = "rounded",
+) -> float:
+    text_w = effective_text_width_pct(width_pct, style=style)
     parts: list[str] = []
     head = (heading or "").strip()
     text = (body or "").strip()
     if head and head not in ("—", "-", "•") and head != text:
         parts.append(head)
     parts.append(text or head)
-    return estimate_block_height_pct("\n".join(parts), width_pct)
+    return estimate_block_height_pct("\n".join(parts), text_w) * _HEIGHT_SAFETY
 
 
 def estimate_pair_height_pct(heading: str, body: str, width_pct: float) -> float:
-    h = (heading or "").strip()
-    b = (body or "").strip()
-    if h and h not in ("•", "—") and b and h != b:
-        return estimate_block_height_pct(f"{h}\n{b}", width_pct, extra_lines=0)
-    return estimate_block_height_pct(b or h, width_pct)
+    return card_content_height_pct(heading, body, width_pct)

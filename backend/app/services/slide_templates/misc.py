@@ -3,21 +3,24 @@ from __future__ import annotations
 from app.schemas.semantic_slides import (
     AgendaSlide,
     ConclusionSlide,
+    GoalsSlide,
     ProblemSlide,
     TableSlide,
     ThankYouSlide,
     TitleSlide,
 )
 from app.services.slide_renderers.context import RenderContext
-from app.services.slide_renderers.drawing import add_card, add_logo_zone_marker, add_subtitle, add_table, add_title
+from app.services.slide_renderers.drawing import add_logo_zone_marker, add_subtitle, add_table, add_title
 from app.services.slide_renderers.layout_bounds import content_bounds_for_slide
-from app.services.slide_templates._helpers import (
-    render_cards_grid,
-    render_cards_horizontal,
-    render_sidebar_list,
-    render_with_title,
-)
+from app.services.slide_templates._helpers import render_cards_horizontal, render_sidebar_list, render_with_title
 from app.services.slide_templates.image_layouts import render_image_column_texts
+from app.services.slide_templates.visual_layouts import (
+    render_dense_grid,
+    render_goals_visual,
+    render_problem_visual,
+    render_visual_agenda,
+    render_visual_conclusion,
+)
 
 
 def render_title(ctx: RenderContext, variant: str) -> None:
@@ -62,24 +65,10 @@ def render_agenda(ctx: RenderContext, variant: str) -> None:
     render_with_title(ctx)
     if variant == "vertical_list":
         render_sidebar_list(ctx, [(f"{i + 1}", item) for i, item in enumerate(spec.items[:6])])
-    elif variant == "numbered_path":
-        bounds = content_bounds_for_slide(ctx)
-        step = (bounds.bottom_pct - bounds.top_pct) / max(len(spec.items), 1)
-        for index, item in enumerate(spec.items[:6]):
-            add_card(
-                ctx,
-                left_pct=bounds.left_pct + 0.04 * (index % 2),
-                top_pct=bounds.top_pct + index * step,
-                width_pct=bounds.right_pct - bounds.left_pct - 0.04 * (index % 2),
-                height_pct=step * 0.9,
-                heading=f"{index + 1}",
-                body=item,
-                accent=index == 0,
-                style="sidebar",
-            )
+    elif variant in ("visual_path", "numbered_path", "grid"):
+        render_visual_agenda(ctx, spec.items[:6])
     else:
-        items = [type("I", (), {"title": str(i + 1), "text": t, "highlight": i == 0})() for i, t in enumerate(spec.items[:6])]
-        render_cards_grid(ctx, items, heading_fn=lambda i: str(i + 1))
+        render_visual_agenda(ctx, spec.items[:6])
 
 
 def render_problem(ctx: RenderContext, variant: str) -> None:
@@ -94,13 +83,26 @@ def render_problem(ctx: RenderContext, variant: str) -> None:
             ctx,
             [type("C", (), {"title": f"Вызов {i + 1}", "text": p, "highlight": False})() for i, p in enumerate(points)],
         )
-    elif variant == "severity_ladder":
-        from app.services.slide_templates._helpers import render_sidebar_list
-
-        render_sidebar_list(ctx, [(f"Риск {i + 1}", p) for i, p in enumerate(points[:4])])
+    elif variant in ("visual_ladder", "severity_ladder", "visual_grid"):
+        render_problem_visual(ctx, points)
     else:
-        items = [type("C", (), {"title": f"Вызов {i + 1}", "text": p, "highlight": i == 0})() for i, p in enumerate(points)]
-        render_cards_grid(ctx, items)
+        render_problem_visual(ctx, points)
+
+
+def render_goals(ctx: RenderContext, variant: str) -> None:
+    spec: GoalsSlide = ctx.spec  # type: ignore[assignment]
+    goals = spec.goals[:5]
+    if variant == "image_column" or ctx.has_image_zone:
+        render_image_column_texts(ctx, goals, prefix="◎")
+        return
+    render_with_title(ctx)
+    if variant in ("target_rings", "hero_featured"):
+        render_goals_visual(ctx, goals)
+    elif variant == "visual_grid":
+        items = [type("C", (), {"title": f"Цель {i + 1}", "text": g, "highlight": False})() for i, g in enumerate(goals)]
+        render_dense_grid(ctx, items)
+    else:
+        render_goals_visual(ctx, goals)
 
 
 def render_conclusion(ctx: RenderContext, variant: str) -> None:
@@ -110,53 +112,10 @@ def render_conclusion(ctx: RenderContext, variant: str) -> None:
         render_image_column_texts(ctx, takeaways, prefix="✓")
         return
     render_with_title(ctx)
-    bounds = content_bounds_for_slide(ctx)
-
-    if variant == "full_banners":
-        step = (bounds.bottom_pct - bounds.top_pct) / max(len(takeaways), 1)
-        for index, text in enumerate(takeaways):
-            add_card(
-                ctx,
-                left_pct=bounds.left_pct,
-                top_pct=bounds.top_pct + index * step,
-                width_pct=bounds.right_pct - bounds.left_pct,
-                height_pct=step * 0.92,
-                heading="Вывод",
-                body=text,
-                accent=index == 0,
-                style="rectangle" if index % 2 else "sidebar",
-            )
-    elif variant == "numbered":
-        render_sidebar_list(ctx, [(f"Вывод {i + 1}", t) for i, t in enumerate(takeaways)])
-    elif variant == "checklist":
-        bounds = content_bounds_for_slide(ctx)
-        step = (bounds.bottom_pct - bounds.top_pct) / max(len(takeaways), 1)
-        for index, text in enumerate(takeaways):
-            add_card(
-                ctx,
-                left_pct=bounds.left_pct,
-                top_pct=bounds.top_pct + index * step,
-                width_pct=bounds.right_pct - bounds.left_pct,
-                height_pct=step * 0.9,
-                heading="✓",
-                body=text,
-                accent=index == 0,
-                style="flat",
-            )
+    if variant in ("visual_stack", "stack", "full_banners", "numbered", "checklist"):
+        render_visual_conclusion(ctx, takeaways)
     else:
-        step = (bounds.bottom_pct - bounds.top_pct) / max(len(takeaways), 1)
-        for index, text in enumerate(takeaways):
-            add_card(
-                ctx,
-                left_pct=bounds.left_pct,
-                top_pct=bounds.top_pct + index * step,
-                width_pct=bounds.right_pct - bounds.left_pct,
-                height_pct=step * 0.92,
-                heading="•",
-                body=text,
-                accent=index == 0,
-                style="rounded",
-            )
+        render_visual_conclusion(ctx, takeaways)
 
 
 def render_table(ctx: RenderContext, variant: str) -> None:
@@ -164,8 +123,6 @@ def render_table(ctx: RenderContext, variant: str) -> None:
     render_with_title(ctx)
     if variant == "compact":
         top = 0.28
-    elif variant == "key_column":
-        top = 0.30
     elif variant == "striped":
         top = 0.31
     else:

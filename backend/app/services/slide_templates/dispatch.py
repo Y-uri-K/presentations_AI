@@ -12,7 +12,7 @@ _RENDERERS = {
     "thank_you": misc.render_thank_you,
     "agenda": misc.render_agenda,
     "problem": misc.render_problem,
-    "goals": lambda ctx, v: cards.render_cards(ctx, v if v != "default" else "featured"),
+    "goals": misc.render_goals,
     "cards": cards.render_cards,
     "comparison": comparison_kpi.render_comparison,
     "timeline": timeline_process.render_timeline,

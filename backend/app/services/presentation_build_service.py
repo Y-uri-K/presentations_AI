@@ -31,6 +31,7 @@ from app.services.source_image_extractor import (
     extract_images_from_sources,
     resolve_material_image,
 )
+from app.services.source_topic_enrichment import enrich_outline_from_sources
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -271,6 +272,28 @@ async def build_presentation_file(
             fallback=presentation.title or presentation_prompt or "Презентация",
         )
 
+        _set_build_stage(db, presentation_id, "content_plan")
+        stage = time.perf_counter()
+        enrichment = await enrich_outline_from_sources(
+            agent_id=agent_id,
+            outline=outline,
+            sources=sources,
+            presentation_prompt=presentation_prompt,
+        )
+        outline = enrichment.outline
+        if enrichment.used_agent:
+            logger.info(
+                "Этап «источники + вопросы по теме»: %.1f с, фактов=%s",
+                time.perf_counter() - stage,
+                len(enrichment.visual_facts),
+            )
+        if enrichment.visual_facts:
+            facts_block = "\n".join(f"- {f}" for f in enrichment.visual_facts[:8])
+            presentation_prompt = (
+                f"{(presentation_prompt or '').strip()}\n\n"
+                f"Ключевые факты из материалов:\n{facts_block}"
+            ).strip()
+
         if settings.presentation_use_template_driven and template.file_type == "pptx":
             _set_build_stage(db, presentation_id, "template_analysis")
             stage = time.perf_counter()
@@ -291,7 +314,7 @@ async def build_presentation_file(
                 len(slides.slides),
                 time.perf_counter() - stage,
             )
-            enrich_presentation_from_outline(slides, outline, max_items_per_slide=3)
+            enrich_presentation_from_outline(slides, outline, max_items_per_slide=6)
             enforce_presentation_text_control(slides)
 
             user_style = analyzed.user_style
@@ -344,8 +367,18 @@ async def build_presentation_file(
                 len(slides.slides),
                 time.perf_counter() - stage,
             )
-            enrich_presentation_from_outline(slides, outline, max_items_per_slide=3)
+            enrich_presentation_from_outline(slides, outline, max_items_per_slide=6)
             enforce_presentation_text_control(slides)
+            user_style_preview = await resolve_user_template_style(
+                template_bytes,
+                template.file_type,
+            )
+            apply_slide_image_plan(
+                slides,
+                presentation_prompt=presentation_prompt,
+                content_image_side=user_style_preview.content_image_side,
+                enabled=generate_images,
+            )
             if not generate_images:
                 clear_generated_image_requests(slides)
 
@@ -354,10 +387,7 @@ async def build_presentation_file(
             logger.info("Этап «изображения»: %.1f с", time.perf_counter() - stage)
 
             stage = time.perf_counter()
-            user_style = await resolve_user_template_style(
-                template_bytes,
-                template.file_type,
-            )
+            user_style = user_style_preview
             logger.info("Этап «стиль шаблона»: %.1f с", time.perf_counter() - stage)
 
             stage = time.perf_counter()

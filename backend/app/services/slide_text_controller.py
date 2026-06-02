@@ -24,7 +24,8 @@ from app.schemas.semantic_slides import (
     TimelineSlide,
     TitleSlide,
 )
-from app.services.slide_content_density import normalize_content_text
+from app.services.slide_content_density import normalize_content_text, short_heading_from_body
+from app.services.slide_text_limits import MAX_CARD_TITLE_CHARS, clamp_text
 from app.services.slide_text_limits import (
     MAX_BODY_CHARS,
     MAX_SUBTITLE_CHARS,
@@ -71,6 +72,23 @@ def _trim_body(value: str) -> str:
 
 def _trim_subtitle(value: str) -> str:
     return clamp_text(_clean_text(value), MAX_SUBTITLE_CHARS)
+
+
+def _ensure_card_fields(card: CardItem, *, index: int) -> None:
+    """Полный текст в card.text; короткий заголовок в card.title."""
+    title = normalize_content_text(card.title) or ""
+    text = normalize_content_text(card.text) or ""
+    placeholders = {"—", "-", "–", "•", "..."}
+    if not text or text in placeholders:
+        if title and len(title) > 15:
+            card.text = title
+            card.title = short_heading_from_body(title)
+        elif title:
+            card.text = title
+    elif not title or title == text or len(title) > 60:
+        card.title = short_heading_from_body(text)
+    if not card.text:
+        card.text = title or f"Пункт {index}"
 
 
 def _dedupe_keep_order(items: Iterable[str]) -> List[str]:
@@ -173,9 +191,14 @@ def enforce_slide_text_control(slide: SemanticSlide, *, slide_index: int) -> Sli
             metric.note = body_field(metric.note or "") or None
     elif isinstance(slide, CardsSlide):
         for idx, card in enumerate(slide.cards, start=1):
-            card.title = _trim_title(_clean_text(card.title, fallback=f"Пункт {idx}"))
+            _ensure_card_fields(card, index=idx)
+            card.title = clamp_text(
+                _clean_text(card.title, fallback=f"Пункт {idx}"),
+                MAX_CARD_TITLE_CHARS,
+            )
             card.text = body_field(card.text, fallback="—")
-            card.highlight = body_field(card.highlight or "") or None
+            if card.highlight:
+                card.highlight = body_field(card.highlight) or None
         while len(slide.cards) < 2:
             slide.cards.append(
                 CardItem(title=f"Пункт {len(slide.cards) + 1}", text=slide.title or "—")
@@ -212,9 +235,12 @@ def enforce_slide_text_control(slide: SemanticSlide, *, slide_index: int) -> Sli
         slide.table.rows = normalized_rows or [["—"] * len(slide.table.headers)]
     elif isinstance(slide, DiagramSlide):
         slide.caption = _trim_subtitle(slide.caption or "") or None
-        slide.key_points = [body_field(p) for p in _dedupe_keep_order(slide.key_points)[:4]] or [
-            "Ключевая мысль"
-        ]
+        points: List[str] = []
+        for p in _dedupe_keep_order(slide.key_points)[:6]:
+            cleaned = body_field(p)
+            if cleaned and cleaned != "—":
+                points.append(cleaned)
+        slide.key_points = points or ["Ключевая мысль"]
     elif isinstance(slide, ConclusionSlide):
         slide.takeaways = [body_field(t) for t in _dedupe_keep_order(slide.takeaways)[:5]] or ["Итог"]
     elif isinstance(slide, ThankYouSlide):

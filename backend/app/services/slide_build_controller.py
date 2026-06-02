@@ -10,7 +10,8 @@ from app.services.slide_renderers.context import RenderContext
 from app.services.slide_renderers.drawing import count_pictures_on_slide
 from app.services.slide_renderers.image_insert import insert_slide_image_early, insert_slide_image_verified
 from app.services.slide_text_controller import enforce_slide_text_control
-from app.services.template_style_applier import apply_slide_background, apply_slide_typography
+from app.services.pptx_fonts import DEFAULT_PRESENTATION_FONT, apply_font_family_preserve_to_slide
+from app.services.template_style_applier import apply_slide_background
 from app.services.template_style_extractor import UserTemplateStyle
 
 logger = logging.getLogger(__name__)
@@ -116,7 +117,8 @@ def build_slide_controlled(
 
     render_semantic_slide(ctx, insert_image=False)
     render_semantic_slide_notes(ctx)
-    apply_slide_typography(slide, user_style=user_style)
+    font_name = ctx.user_style.font_family or DEFAULT_PRESENTATION_FONT
+    apply_font_family_preserve_to_slide(slide, font_name)
 
     shape_count = len(slide.shapes)
     logger.info(

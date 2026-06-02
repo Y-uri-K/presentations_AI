@@ -6,19 +6,20 @@ from pptx.util import Emu, Inches, Pt
 
 from app.schemas.semantic_slides import ComparisonSlide, KpiSlide, MetricItem, ResultsSlide
 from app.services.slide_renderers.context import RenderContext
-from app.services.slide_renderers.drawing import (
-    add_card,
-    add_metric_block,
-    add_title,
-)
-from app.services.slide_renderers.layout_bounds import content_bounds_for_slide, grid_positions_in_bounds
+from app.services.slide_renderers.drawing import add_title
+from app.services.slide_renderers.layout_bounds import content_bounds_for_slide
 from app.services.slide_palette_colors import palette_rgb
+from app.services.slide_renderers.content_cell import (
+    render_content_cell,
+    render_equal_cells_row,
+    render_equal_cells_stack,
+)
 from app.services.slide_templates._helpers import render_with_title
 from app.services.slide_templates.image_layouts import (
     render_image_comparison_stack,
     render_image_metrics_column,
 )
-from pptx.dml.color import RGBColor
+from app.services.slide_templates.visual_layouts import render_dense_kpi_grid, render_dense_kpi_row
 
 
 def render_comparison(ctx: RenderContext, variant: str) -> None:
@@ -29,35 +30,16 @@ def render_comparison(ctx: RenderContext, variant: str) -> None:
 
     render_with_title(ctx)
     bounds = content_bounds_for_slide(ctx)
+    span_h = bounds.bottom_pct - bounds.top_pct
+    span_w = bounds.right_pct - bounds.left_pct
+    gap = 0.016
 
     if variant == "versus_center":
+        col_w = (span_w - gap) / 2
+        add_comparison_columns(ctx, bounds, col_w, gap, spec)
         mid = (bounds.left_pct + bounds.right_pct) / 2
-        col_w = (mid - bounds.left_pct - 0.06)
-        top = bounds.top_pct
-        h = bounds.bottom_pct - top
-        add_card(
-            ctx,
-            left_pct=bounds.left_pct,
-            top_pct=top,
-            width_pct=col_w,
-            height_pct=h,
-            heading=spec.left.heading,
-            body="\n".join(f"• {p}" for p in spec.left.points[:5]),
-            style="rounded",
-        )
-        add_card(
-            ctx,
-            left_pct=mid + 0.06,
-            top_pct=top,
-            width_pct=col_w,
-            height_pct=h,
-            heading=spec.right.heading,
-            body="\n".join(f"• {p}" for p in spec.right.points[:5]),
-            accent=True,
-            style="rounded",
-        )
+        cy = int(ctx.slide_height * (bounds.top_pct + span_h / 2))
         cx = int(ctx.slide_width * mid)
-        cy = int(ctx.slide_height * (top + h / 2))
         badge = ctx.slide.shapes.add_shape(
             MSO_AUTO_SHAPE_TYPE.OVAL,
             cx - Emu(Inches(0.35)),
@@ -76,82 +58,52 @@ def render_comparison(ctx: RenderContext, variant: str) -> None:
         r.font.bold = True
         r.font.size = Pt(14)
         r.font.color.rgb = palette_rgb(ctx.user_style, "on_accent")
-    elif variant == "stacked_rows":
-        step = (bounds.bottom_pct - bounds.top_pct) / 2
-        add_card(
+    elif variant in ("stacked_rows", "mirror_bars"):
+        render_equal_cells_stack(
             ctx,
-            left_pct=bounds.left_pct,
-            top_pct=bounds.top_pct,
-            width_pct=bounds.right_pct - bounds.left_pct,
-            height_pct=step * 0.92,
-            heading=spec.left.heading,
-            body="\n".join(spec.left.points[:5]),
-            style="flat",
-        )
-        add_card(
-            ctx,
-            left_pct=bounds.left_pct,
-            top_pct=bounds.top_pct + step,
-            width_pct=bounds.right_pct - bounds.left_pct,
-            height_pct=step * 0.92,
-            heading=spec.right.heading,
-            body="\n".join(spec.right.points[:5]),
-            accent=True,
-            style="sidebar",
-        )
-    elif variant == "mirror_bars":
-        mid = (bounds.left_pct + bounds.right_pct) / 2
-        col_w = (mid - bounds.left_pct - 0.04)
-        top = bounds.top_pct
-        h = bounds.bottom_pct - top
-        add_card(
-            ctx,
-            left_pct=bounds.left_pct,
-            top_pct=top,
-            width_pct=col_w,
-            height_pct=h * 0.45,
-            heading=spec.left.heading,
-            body="\n".join(spec.left.points[:4]),
-            style="flat",
-        )
-        add_card(
-            ctx,
-            left_pct=bounds.left_pct,
-            top_pct=top + h * 0.52,
-            width_pct=col_w,
-            height_pct=h * 0.45,
-            heading=spec.right.heading,
-            body="\n".join(spec.right.points[:4]),
-            accent=True,
-            style="rounded",
+            bounds,
+            [
+                (spec.left.heading, "\n".join(spec.left.points[:6])),
+                (spec.right.heading, "\n".join(spec.right.points[:6])),
+            ],
+            accent_index=1,
+            max_items=2,
         )
     else:
-        mid = (bounds.left_pct + bounds.right_pct) / 2
-        gap = 0.02
-        col_w = (bounds.right_pct - bounds.left_pct - gap) / 2
-        top = bounds.top_pct
-        height = bounds.bottom_pct - top
-        add_card(
-            ctx,
-            left_pct=bounds.left_pct,
-            top_pct=top,
-            width_pct=col_w,
-            height_pct=height,
-            heading=spec.left.heading,
-            body="\n".join(f"• {p}" for p in spec.left.points[:5]),
-            style="rectangle",
-        )
-        add_card(
-            ctx,
-            left_pct=mid + gap / 2,
-            top_pct=top,
-            width_pct=col_w,
-            height_pct=height,
-            heading=spec.right.heading,
-            body="\n".join(f"• {p}" for p in spec.right.points[:5]),
-            accent=True,
-            style="rounded",
-        )
+        col_w = (span_w - gap) / 2
+        add_comparison_columns(ctx, bounds, col_w, gap, spec, accent_right=True)
+
+
+def add_comparison_columns(
+    ctx: RenderContext,
+    bounds,
+    col_w: float,
+    gap: float,
+    spec: ComparisonSlide,
+    *,
+    accent_right: bool = False,
+) -> None:
+    span_h = bounds.bottom_pct - bounds.top_pct
+    render_content_cell(
+        ctx,
+        left_pct=bounds.left_pct,
+        top_pct=bounds.top_pct,
+        width_pct=col_w,
+        height_pct=span_h,
+        heading=spec.left.heading,
+        body="\n".join(f"• {p}" for p in spec.left.points[:6]),
+        accent=False,
+    )
+    render_content_cell(
+        ctx,
+        left_pct=bounds.left_pct + col_w + gap,
+        top_pct=bounds.top_pct,
+        width_pct=col_w,
+        height_pct=span_h,
+        heading=spec.right.heading,
+        body="\n".join(f"• {p}" for p in spec.right.points[:6]),
+        accent=accent_right,
+    )
 
 
 def render_kpi(ctx: RenderContext, variant: str) -> None:
@@ -163,96 +115,47 @@ def render_kpi(ctx: RenderContext, variant: str) -> None:
 
     render_with_title(ctx)
     bounds = content_bounds_for_slide(ctx)
+    span_h = bounds.bottom_pct - bounds.top_pct
+    span_w = bounds.right_pct - bounds.left_pct
 
     if variant == "hero_metric" and metrics:
         first = metrics[0]
-        add_metric_block(
+        render_content_cell(
             ctx,
             left_pct=bounds.left_pct,
             top_pct=bounds.top_pct,
-            width_pct=bounds.right_pct - bounds.left_pct,
-            height_pct=0.28,
-            value=first.value,
-            label=first.label,
-            note=first.note,
+            width_pct=span_w,
+            height_pct=span_h * 0.34,
+            heading=first.label,
+            body=first.note or "",
+            kpi_value=first.value,
+            accent=True,
         )
         rest = metrics[1:5]
-        gap = 0.02
-        w = (bounds.right_pct - bounds.left_pct - gap * (len(rest) - 1)) / max(len(rest), 1)
-        for index, metric in enumerate(rest):
-            add_metric_block(
+        if rest:
+            items = [
+                (m.label, (m.note or "").strip() or m.label, m.value) for m in rest
+            ]
+            render_equal_cells_row(
                 ctx,
-                left_pct=bounds.left_pct + index * (w + gap),
-                top_pct=bounds.top_pct + 0.32,
-                width_pct=w,
-                height_pct=bounds.bottom_pct - bounds.top_pct - 0.34,
-                value=metric.value,
-                label=metric.label,
-                note=metric.note,
+                left_pct=bounds.left_pct,
+                top_pct=bounds.top_pct + span_h * 0.36 + 0.02,
+                width_pct=span_w,
+                height_pct=span_h * 0.64 - 0.02,
+                items=items,
             )
-    elif variant == "accent_row":
-        count = min(len(metrics), 4)
-        gap = 0.02
-        w = (bounds.right_pct - bounds.left_pct - gap * (count - 1)) / max(count, 1)
-        for index, metric in enumerate(metrics[:count]):
-            add_card(
-                ctx,
-                left_pct=bounds.left_pct + index * (w + gap),
-                top_pct=bounds.top_pct,
-                width_pct=w,
-                height_pct=bounds.bottom_pct - bounds.top_pct,
-                heading=metric.value,
-                body=f"{metric.label}\n{metric.note or ''}".strip(),
-                accent=index == 0,
-                style="rectangle" if index % 2 else "rounded",
-            )
-    elif variant == "kpi_trio" and len(metrics) >= 2:
-        count = min(len(metrics), 3)
-        gap = 0.03
-        w = (bounds.right_pct - bounds.left_pct - gap * (count - 1)) / count
-        for index, metric in enumerate(metrics[:count]):
-            add_metric_block(
-                ctx,
-                left_pct=bounds.left_pct + index * (w + gap),
-                top_pct=bounds.top_pct,
-                width_pct=w,
-                height_pct=bounds.bottom_pct - bounds.top_pct,
-                value=metric.value,
-                label=metric.label,
-                note=metric.note,
-            )
+    elif variant in ("accent_row", "kpi_trio"):
+        render_dense_kpi_row(ctx, metrics[:3] if variant == "kpi_trio" else metrics)
     elif variant == "delta_cards":
-        from app.services.slide_templates._helpers import render_sidebar_list
-
-        render_sidebar_list(
-            ctx,
-            [
-                (metric.value, f"{metric.label}\n{metric.note or ''}".strip())
-                for metric in metrics[:4]
-            ],
-        )
+        pairs = [(m.value, f"{m.label}\n{m.note or ''}".strip()) for m in metrics[:4]]
+        render_equal_cells_stack(ctx, bounds, pairs, accent_index=0)
     else:
-        for index, (left, top, width, height) in enumerate(
-            grid_positions_in_bounds(len(metrics), bounds)
-        ):
-            metric = metrics[index]
-            add_metric_block(
-                ctx,
-                left_pct=left,
-                top_pct=top,
-                width_pct=width,
-                height_pct=height,
-                value=metric.value,
-                label=metric.label,
-                note=metric.note,
-            )
+        render_dense_kpi_grid(ctx, metrics)
 
 
 def render_results(ctx: RenderContext, variant: str) -> None:
     spec: ResultsSlide = ctx.spec  # type: ignore[assignment]
     if variant == "image_metrics_column" or ctx.has_image_zone:
-        from app.schemas.semantic_slides import MetricItem
-
         metrics = [
             MetricItem(value=r.value, label=r.label, note=r.trend) for r in spec.results[:6]
         ]
@@ -268,7 +171,9 @@ def render_results(ctx: RenderContext, variant: str) -> None:
     kpi_spec = KpiSlide(
         type="kpi",
         title=spec.title,
-        metrics=[MetricItem(value=r.value, label=r.label, note=r.trend) for r in spec.results[:6]],
+        metrics=[
+            MetricItem(value=r.value, label=r.label, note=r.trend) for r in spec.results[:6]
+        ],
         image=spec.image,
         speaker_notes=spec.speaker_notes,
     )

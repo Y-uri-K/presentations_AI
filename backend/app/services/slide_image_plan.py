@@ -9,8 +9,21 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 _VISUAL_TYPES = frozenset(
-    {"diagram", "comparison", "process", "timeline", "cards", "kpi", "table"}
+    {
+        "diagram",
+        "comparison",
+        "process",
+        "timeline",
+        "cards",
+        "kpi",
+        "table",
+        "problem",
+        "goals",
+        "agenda",
+        "results",
+    }
 )
+
 
 def _safe_str(value: object) -> str:
     return str(value).strip() if value is not None else ""
@@ -31,6 +44,7 @@ def _slide_keywords(slide: object, *, max_items: int = 8) -> list[str]:
         for card in (getattr(slide, "cards", None) or [])[:max_items]:
             add(getattr(card, "title", None))
             add(getattr(card, "text", None))
+            add(getattr(card, "highlight", None))
     elif slide_type == "kpi":
         for metric in (getattr(slide, "metrics", None) or [])[:max_items]:
             add(getattr(metric, "label", None))
@@ -56,11 +70,18 @@ def _slide_keywords(slide: object, *, max_items: int = 8) -> list[str]:
         add(getattr(slide, "caption", None))
         for p in (getattr(slide, "key_points", None) or [])[:4]:
             add(p)
+    elif slide_type == "problem":
+        for p in (getattr(slide, "pain_points", None) or [])[:4]:
+            add(p)
+    elif slide_type == "goals":
+        for g in (getattr(slide, "goals", None) or [])[:4]:
+            add(g)
+    elif slide_type == "agenda":
+        for item in (getattr(slide, "items", None) or [])[:4]:
+            add(item)
 
-    # глобально: заголовок в начале
     title = _safe_str(getattr(slide, "title", "")) or _safe_str(getattr(slide, "topic", ""))
     cleaned = [title] + items
-    # дедуп (case-insensitive), ограничение
     seen = set()
     result: list[str] = []
     for t in cleaned:
@@ -103,20 +124,26 @@ def apply_slide_image_plan(
         score = 0
         if slide.type == "diagram":
             score += 100
-        elif slide.type == "kpi":
-            score += 70
-        elif slide.type == "results":
-            score += 55
-        elif slide.type in ("comparison", "process", "timeline"):
-            score += 60
+        elif slide.type == "comparison":
+            score += 85
         elif slide.type == "cards":
-            score += 30
+            score += 75
+        elif slide.type == "problem":
+            score += 70
+        elif slide.type == "kpi":
+            score += 68
+        elif slide.type == "results":
+            score += 60
+        elif slide.type in ("process", "timeline"):
+            score += 55
+        elif slide.type in ("goals", "agenda"):
+            score += 45
         elif slide.type in _VISUAL_TYPES:
-            score += 10
+            score += 15
         if index >= len(slides.slides) - 2:
-            score -= 80
+            score -= 70
         elif 0 < index < len(slides.slides) - 1:
-            score += 5
+            score += 8
         scored.append((score, index))
 
     scored.sort(key=lambda item: item[0], reverse=True)
@@ -130,19 +157,21 @@ def apply_slide_image_plan(
         keywords = _slide_keywords(slide)
         kw_line = "; ".join(keywords[:8])
         prompt = (
-            "Abstract visual illustration on white background. "
-            "STRICTLY NO text, letters, numbers, words, labels or captions on the image. "
-            "No logos, no people. Icons and shapes only. "
+            "Professional abstract illustration, editorial style, white background. "
+            "STRICTLY NO text, letters, numbers, words, labels or captions. "
+            "No logos, no faces. Geometric shapes, gradients, icons. "
             f"Topic: {kw_line}."
         )
         if context:
-            prompt += f" Presentation context: {context}."
+            prompt += f" Context: {context}."
         if slide.type == "diagram":
             placement = "left"
         elif slide.type in ("comparison", "timeline", "process"):
             placement = "vertical"
-        elif slide.type in ("kpi", "results"):
+        elif slide.type in ("kpi", "results", "problem"):
             placement = "right"
+        elif slide.type == "cards":
+            placement = content_image_side if content_image_side in ("left", "right") else "right"
         else:
             placement = content_image_side if content_image_side in ("left", "right") else "right"
         slide.image = SlideImageSpec(
