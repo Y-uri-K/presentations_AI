@@ -1,4 +1,3 @@
-/** Маршрут переадресации после успешного входа */
 export const POST_LOGIN_REDIRECT = "/dashboard";
 
 export const ROUTES = {

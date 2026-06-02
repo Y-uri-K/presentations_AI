@@ -9,14 +9,6 @@ export function saveTokens(accessToken: string, refreshToken: string): void {
   localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
 }
 
-/** @deprecated Используйте saveTokens */
-export function saveAccessToken(token: string): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
-}
-
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") {
     return null;

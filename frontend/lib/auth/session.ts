@@ -31,7 +31,6 @@ async function refreshSessionOnce(): Promise<boolean> {
   return refreshInFlight;
 }
 
-/** Проверяет access-токен, при необходимости обновляет пару JWT через refresh. */
 export async function ensureValidSession(): Promise<boolean> {
   const accessToken = getAccessToken();
   const refreshToken = getRefreshToken();
@@ -44,9 +43,7 @@ export async function ensureValidSession(): Promise<boolean> {
     try {
       await fetchMe(accessToken);
       return true;
-    } catch {
-      // access отклонён — пробуем refresh
-    }
+    } catch {}
   }
 
   if (!refreshToken) {
