@@ -86,13 +86,13 @@ export function LoginForm() {
       </div>
 
       {formError ? (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p>
+        <p className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-text)]">{formError}</p>
       ) : null}
 
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full rounded-xl bg-gradient-to-r from-[var(--primary)] to-[#3b82f6] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-[var(--primary-dark)] hover:to-[var(--primary)] hover:shadow-blue-500/35 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--on-primary)] shadow-lg shadow-[color:var(--primary)]/20 transition-all hover:from-[var(--primary-dark)] hover:to-[var(--primary)] hover:shadow-[color:var(--primary)]/25 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? "Вход…" : "Войти"}
       </button>

@@ -8,6 +8,7 @@ import httpx
 from fastapi import HTTPException, status
 
 from app.ai.http_errors import raise_provider_http_error
+from app.ai.safety import raise_if_safety_rejection
 from app.ai.types import ChatMessage
 from app.config import get_settings
 
@@ -78,6 +79,7 @@ async def polza_chat_completions(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Polza AI вернула пустой ответ",
         )
+    raise_if_safety_rejection(text, provider_name="Polza AI")
     logger.info(
         "Polza chat ответ: модель=%s, %s символов за %.1f с",
         model_id,

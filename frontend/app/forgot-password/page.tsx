@@ -29,8 +29,8 @@ export default function ForgotPasswordPage() {
         }
       >
         <div className="mb-8">
-          <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Сброс пароля</h2>
-          <p className="mt-1 text-sm text-slate-500">Только для зарегистрированной почты</p>
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">Сброс пароля</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">Только для зарегистрированной почты</p>
         </div>
 
         <ForgotPasswordForm />

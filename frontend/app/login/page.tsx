@@ -28,8 +28,8 @@ export default function LoginPage() {
         }
       >
         <div className="mb-8">
-          <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Вход</h2>
-          <p className="mt-1 text-sm text-slate-500">Введите логин и пароль</p>
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">Вход</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">Введите логин и пароль</p>
         </div>
 
         <LoginForm />

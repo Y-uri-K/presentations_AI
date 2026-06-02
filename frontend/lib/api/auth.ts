@@ -94,6 +94,8 @@ export type UserMeResponse = {
   id: number;
   username: string;
   email: string;
+  profile_image: string | null;
+  role: "user" | "admin" | string;
 };
 
 export async function requestRegistrationCode(payload: {
@@ -180,4 +182,64 @@ export async function fetchMe(accessToken: string): Promise<UserMeResponse> {
   }
 
   return (await response.json()) as UserMeResponse;
+}
+
+export async function updateMe(
+  accessToken: string,
+  payload: { username: string },
+): Promise<UserMeResponse> {
+  const response = await fetch(`${API_URL}/api/auth/me`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ username: payload.username.trim() }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new ApiError(parseApiError(errorData, "Не удалось обновить профиль"), response.status);
+  }
+
+  return (await response.json()) as UserMeResponse;
+}
+
+export async function uploadProfileImage(
+  accessToken: string,
+  image: File,
+): Promise<UserMeResponse> {
+  const formData = new FormData();
+  formData.append("image", image);
+
+  const response = await fetch(`${API_URL}/api/auth/me/profile-image`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new ApiError(parseApiError(errorData, "Не удалось загрузить фото"), response.status);
+  }
+
+  return (await response.json()) as UserMeResponse;
+}
+
+export async function deleteCurrentAccount(accessToken: string): Promise<MessageResponse> {
+  const response = await fetch(`${API_URL}/api/auth/me`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new ApiError(parseApiError(errorData, "Не удалось удалить аккаунт"), response.status);
+  }
+
+  return (await response.json()) as MessageResponse;
 }

@@ -115,7 +115,7 @@ export function ForgotPasswordForm() {
         {...register("email")}
       />
 
-      <div className="rounded-xl border border-sky-100 bg-sky-50/80 px-4 py-3">
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3">
         <AuthField
           id="verification_code"
           label="Код из письма"
@@ -156,17 +156,17 @@ export function ForgotPasswordForm() {
       />
 
       {statusMessage ? (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{statusMessage}</p>
+        <p className="rounded-lg border border-[var(--success-border)] bg-[var(--success-bg)] px-3 py-2 text-sm text-[var(--success-text)]">{statusMessage}</p>
       ) : null}
       {formError ? (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p>
+        <p className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-text)]">{formError}</p>
       ) : null}
 
       <button
         type="button"
         onClick={handleSendCode}
         disabled={isSendingCode || isSubmitting || isOnCooldown}
-        className="w-full rounded-xl border border-sky-200 bg-white px-4 py-3 text-sm font-semibold text-[var(--primary)] transition-colors hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--primary)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isOnCooldown
           ? `Повторная отправка через ${cooldownSeconds} сек.`
@@ -180,12 +180,12 @@ export function ForgotPasswordForm() {
       <button
         type="submit"
         disabled={isSubmitting || !codeSent}
-        className="w-full rounded-xl bg-gradient-to-r from-[var(--primary)] to-[#3b82f6] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-[var(--primary-dark)] hover:to-[var(--primary)] hover:shadow-blue-500/35 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--on-primary)] shadow-lg shadow-[color:var(--primary)]/20 transition-all hover:from-[var(--primary-dark)] hover:to-[var(--primary)] hover:shadow-[color:var(--primary)]/25 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? "Сохранение…" : "Сменить пароль"}
       </button>
 
-      <p className="text-center text-sm text-slate-500">
+      <p className="text-center text-sm text-[var(--muted)]">
         <Link
           href={ROUTES.login}
           className="font-medium text-[var(--primary)] hover:text-[var(--primary-dark)] transition-colors"

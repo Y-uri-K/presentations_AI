@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
 
@@ -28,6 +30,12 @@ class UserMeResponse(BaseModel):
     id: int
     username: str
     email: str
+    profile_image: Optional[str] = None
+    role: str = "user"
+
+
+class UpdateProfileRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
 
 
 class RegisterRequest(BaseModel):

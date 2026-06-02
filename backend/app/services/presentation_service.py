@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import List, Optional
 
 from fastapi import HTTPException, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.registry import chat_with_agent
+from app.ai.registry import chat_with_agent_resilient
 from app.ai.types import ChatMessage
 from app.config import get_settings
 from app.models import Presentation, PresentationSourceFile, User
@@ -24,8 +26,47 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_title(title: str, fallback: str = "Презентация") -> str:
+    cleaned = re.sub(r"\s+", " ", title.strip())
+    return cleaned[:255] if cleaned else fallback
+
+
 def _derive_title(outline: str, prompt: str) -> str:
     return extract_presentation_title(outline, fallback=prompt.strip() or "Презентация")
+
+
+def list_user_presentations(db: Session, user_id: int) -> list[Presentation]:
+    return list(
+        db.scalars(
+            select(Presentation)
+            .where(Presentation.user_id == user_id)
+            .order_by(Presentation.updated_at.desc(), Presentation.created_at.desc())
+        )
+    )
+
+
+def rename_presentation(
+    db: Session,
+    *,
+    user: User,
+    presentation_id: int,
+    title: str,
+) -> Presentation:
+    from app.services.presentation_build_service import get_user_presentation
+
+    presentation = get_user_presentation(db, user_id=user.id, presentation_id=presentation_id)
+    presentation.title = _sanitize_title(title, presentation.title)
+    db.commit()
+    db.refresh(presentation)
+    return presentation
+
+
+def delete_presentation(db: Session, *, user: User, presentation_id: int) -> None:
+    from app.services.presentation_build_service import get_user_presentation
+
+    presentation = get_user_presentation(db, user_id=user.id, presentation_id=presentation_id)
+    db.delete(presentation)
+    db.commit()
 
 
 async def create_presentation_outline(
@@ -107,7 +148,7 @@ async def create_presentation_outline(
         settings.presentation_max_slides,
     )
     started = time.perf_counter()
-    raw_outline = await chat_with_agent(
+    raw_outline = await chat_with_agent_resilient(
         selected_agent,
         [
             ChatMessage(

@@ -12,8 +12,11 @@ import {
   buildPresentation,
   createPresentation,
   downloadPresentation,
+  fetchPresentations,
+  getPresentationStatus,
   updatePresentationOutline,
   type PresentationStatus,
+  type PresentationStatusResponse,
 } from "@/lib/api/presentations";
 import { pickPreferredAgent } from "@/lib/agents/pickPreferredAgent";
 import { PresentationPlanEditor } from "@/components/dashboard/PresentationPlanEditor";
@@ -50,6 +53,7 @@ const SOURCE_ACCEPT =
   ".docx,.pdf,.md,.markdown,.txt,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 const MAX_SOURCE_FILES = 5;
+const ACTIVE_PRESENTATION_ID_KEY = "aideck_active_presentation_id";
 
 function isAllowedSourceFile(file: File): boolean {
   const name = file.name.toLowerCase();
@@ -62,7 +66,25 @@ function isAllowedSourceFile(file: File): boolean {
   );
 }
 
-export function CreatePresentationPanel() {
+type CreatePresentationPanelProps = {
+  onPresentationsChanged?: () => void;
+};
+
+function saveActivePresentationId(id: number) {
+  localStorage.setItem(ACTIVE_PRESENTATION_ID_KEY, String(id));
+}
+
+function readActivePresentationId(): number | null {
+  const raw = localStorage.getItem(ACTIVE_PRESENTATION_ID_KEY);
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function clearActivePresentationId() {
+  localStorage.removeItem(ACTIVE_PRESENTATION_ID_KEY);
+}
+
+export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresentationPanelProps) {
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const { selectedTemplate, selectedTemplateId } = useTemplateSelection();
 
@@ -87,6 +109,7 @@ export function CreatePresentationPanel() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [generateImages, setGenerateImages] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const effectiveTemplateType =
     buildTemplateFileType ?? selectedTemplate?.file_type ?? null;
@@ -137,6 +160,104 @@ export function CreatePresentationPanel() {
       })
       .finally(() => setIsLoadingAgents(false));
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    function applyStatus(status: PresentationStatusResponse) {
+      setPresentationId(status.id);
+      setPresentationTitle(status.title);
+      setOutline(status.outline ?? null);
+      setSavedOutline(status.outline ?? null);
+      setBuildStatus(status.status);
+      setBuildStage(status.build_stage);
+      setBuildTemplateFileType(status.template_file_type);
+      setSlideCount(status.slide_count);
+      setPrompt("");
+      setSourceFiles([]);
+    }
+
+    async function resumeActivePresentation() {
+      let activeId = readActivePresentationId();
+      if (!activeId) {
+        const latest = (await fetchPresentations()).find((item) =>
+          ["draft", "building", "ready", "failed"].includes(item.status),
+        );
+        activeId = latest?.id ?? null;
+        if (activeId) {
+          saveActivePresentationId(activeId);
+        }
+      }
+      if (!activeId) {
+        return;
+      }
+
+      try {
+        const status = await getPresentationStatus(activeId);
+        if (cancelled) {
+          return;
+        }
+        applyStatus(status);
+        if (status.status === "building") {
+          setIsBuilding(true);
+          setNotice("Сборка была восстановлена после перезагрузки страницы");
+          const result = await buildPresentation(activeId, {
+            generateImages: true,
+            onPoll: (nextStatus) => {
+              if (cancelled) {
+                return;
+              }
+              applyStatus(nextStatus);
+              if (nextStatus.error_message) {
+                setError(nextStatus.error_message);
+              }
+            },
+          });
+          if (cancelled) {
+            return;
+          }
+          setBuildStatus(result.status);
+          setSlideCount(result.slide_count);
+          if (result.status === "failed" && result.error_message) {
+            setError(result.error_message);
+          }
+          onPresentationsChanged?.();
+        }
+      } catch (err) {
+        if (!cancelled) {
+          clearActivePresentationId();
+          setError(err instanceof ApiError ? err.message : "Не удалось восстановить презентацию");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsBuilding(false);
+        }
+      }
+    }
+
+    void resumeActivePresentation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [onPresentationsChanged]);
+
+  function clearCurrentPresentationState() {
+    clearActivePresentationId();
+    setPrompt("");
+    setSourceFiles([]);
+    setOutline(null);
+    setSavedOutline(null);
+    setPresentationId(null);
+    setPresentationTitle("Презентация");
+    setBuildStatus(null);
+    setBuildTemplateFileType(null);
+    setSlideCount(null);
+    setBuildStage(null);
+    setIsBuilding(false);
+    setIsDownloading(false);
+    setError(null);
+  }
 
   function handleSourceFilesChange(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -203,6 +324,7 @@ export function CreatePresentationPanel() {
 
     setIsCreating(true);
     setError(null);
+    setNotice(null);
     setOutline(null);
     setSavedOutline(null);
     setPresentationId(null);
@@ -220,9 +342,11 @@ export function CreatePresentationPanel() {
       setOutline(result.outline);
       setSavedOutline(result.outline);
       setPresentationId(result.id);
+      saveActivePresentationId(result.id);
       setBuildStatus(result.status);
       setBuildTemplateFileType(result.template_file_type);
       setPresentationTitle(outlineTitleFromMarkdown(result.outline));
+      onPresentationsChanged?.();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось создать презентацию");
     } finally {
@@ -249,6 +373,7 @@ export function CreatePresentationPanel() {
 
     setIsBuilding(true);
     setError(null);
+    setNotice(null);
     setBuildStatus("building");
     setBuildStage("queued");
 
@@ -265,6 +390,7 @@ export function CreatePresentationPanel() {
       });
       setBuildStatus(result.status);
       setSlideCount(result.slide_count);
+      onPresentationsChanged?.();
       if (result.status === "failed" && result.error_message) {
         setError(result.error_message);
       }
@@ -291,20 +417,40 @@ export function CreatePresentationPanel() {
     }
   }
 
+  function handleSavePresentation() {
+    if (!presentationId || buildStatus !== "ready") {
+      return;
+    }
+    saveActivePresentationId(presentationId);
+    setNotice("Презентация сохранена и доступна в списке «Мои презентации»");
+    onPresentationsChanged?.();
+  }
+
+  function handleFullReset() {
+    const confirmed = window.confirm(
+      "Очистить текущую рабочую область и план на экране? Сохранённые презентации останутся в списке.",
+    );
+    if (!confirmed) {
+      return;
+    }
+    clearCurrentPresentationState();
+    setNotice("Рабочая область очищена. Сохранённые презентации остались в списке.");
+  }
+
   const planDisabled = isBuilding || isSavingOutline;
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="border-b border-slate-100 px-6 py-4">
-        <h2 className="text-lg font-semibold text-slate-900">Новая презентация</h2>
-        <p className="text-sm text-slate-500 mt-1">
+    <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm">
+      <div className="border-b border-[var(--border)] px-6 py-4">
+        <h2 className="text-lg font-semibold text-[var(--foreground)]">Новая презентация</h2>
+        <p className="mt-1 text-sm text-[var(--muted)]">
           План и итоговая презентация — не более 10 слайдов. Сгенерируйте план, отредактируйте и соберите PPTX.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
         <div>
-          <label htmlFor="presentation-prompt" className="block text-sm font-medium text-slate-700 mb-1.5">
+          <label htmlFor="presentation-prompt" className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">
             Описание презентации
           </label>
           <textarea
@@ -313,7 +459,7 @@ export function CreatePresentationPanel() {
             onChange={(event) => setPrompt(event.target.value)}
             rows={4}
             placeholder="Например: презентация о запуске нового продукта для инвесторов, 10 слайдов…"
-            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100 resize-y min-h-[100px]"
+            className="min-h-[100px] w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-sm text-[var(--foreground)] outline-none transition-colors placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[color:var(--focus-ring)]"
           />
         </div>
 
@@ -322,7 +468,7 @@ export function CreatePresentationPanel() {
             type="button"
             onClick={() => sourceInputRef.current?.click()}
             disabled={sourceFiles.length >= MAX_SOURCE_FILES}
-            className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-[var(--primary)] hover:bg-sky-100 disabled:opacity-50 transition-colors"
+            className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm font-medium text-[var(--primary)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--accent-light)] disabled:opacity-50"
           >
             + Добавить файл
           </button>
@@ -336,12 +482,12 @@ export function CreatePresentationPanel() {
           />
 
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-slate-500">ИИ:</span>
+            <span className="text-[var(--muted)]">ИИ:</span>
             <select
               value={agentId}
               onChange={(event) => setAgentId(event.target.value as AgentId)}
               disabled={isLoadingAgents}
-              className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-sky-300"
+              className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)]"
             >
               {agents.map((agent) => (
                 <option key={agent.id} value={agent.id} disabled={!agent.available}>
@@ -358,13 +504,13 @@ export function CreatePresentationPanel() {
             {sourceFiles.map((file, index) => (
               <li
                 key={`${file.name}-${index}`}
-                className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"
+                className="flex items-center justify-between rounded-lg bg-[var(--surface-muted)] px-3 py-2 text-sm"
               >
-                <span className="truncate text-slate-700">{file.name}</span>
+                <span className="truncate text-[var(--foreground)]">{file.name}</span>
                 <button
                   type="button"
                   onClick={() => removeSourceFile(index)}
-                  className="shrink-0 ml-2 text-xs text-red-600 hover:text-red-700"
+                  className="ml-2 shrink-0 text-xs text-[var(--danger-text)] hover:opacity-80"
                 >
                   Убрать
                 </button>
@@ -373,40 +519,43 @@ export function CreatePresentationPanel() {
           </ul>
         ) : null}
 
-        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+        <div className="rounded-lg bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--muted)]">
           {selectedTemplate ? (
             <>
               Шаблон:{" "}
-              <span className="font-medium text-slate-800">{selectedTemplate.name}</span>
-              <span className="text-slate-400 ml-1">({selectedTemplate.file_type.toUpperCase()})</span>
+              <span className="font-medium text-[var(--foreground)]">{selectedTemplate.name}</span>
+              <span className="ml-1 text-[var(--subtle)]">({selectedTemplate.file_type.toUpperCase()})</span>
               {selectedTemplate.file_type === "pdf" ? (
-                <span className="block mt-1 text-slate-500">
+                <span className="mt-1 block text-[var(--muted)]">
                   PDF: оформление (фон, цвета, шрифты) возьмём из первой страницы
                 </span>
               ) : null}
             </>
           ) : (
-            <span className="text-slate-400">
+            <span className="text-[var(--subtle)]">
               Шаблон не выбран — выберите PPTX или PDF в блоке «Шаблоны»
             </span>
           )}
         </div>
 
         {error ? (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          <p className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-text)]">{error}</p>
+        ) : null}
+        {notice ? (
+          <p className="rounded-lg border border-[var(--success-border)] bg-[var(--success-bg)] px-3 py-2 text-sm text-[var(--success-text)]">{notice}</p>
         ) : null}
 
         <button
           type="submit"
           disabled={isCreating}
-          className="w-full rounded-xl bg-gradient-to-r from-[var(--primary)] to-[#3b82f6] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 hover:from-[var(--primary-dark)] hover:to-[var(--primary)] disabled:opacity-60 transition-all"
+          className="w-full rounded-xl bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--on-primary)] shadow-lg shadow-[color:var(--primary)]/20 transition-all hover:from-[var(--primary-dark)] hover:to-[var(--primary)] disabled:opacity-60"
         >
           {isCreating ? "Генерация плана…" : "Сгенерировать план"}
         </button>
       </form>
 
       {outline ? (
-        <div className="border-t border-slate-100 px-6 py-5 bg-slate-50/50 space-y-4">
+        <div className="space-y-4 border-t border-[var(--border)] bg-[var(--surface-muted)] px-6 py-5">
           <PresentationPlanEditor
             outline={outline}
             onOutlineChange={setOutline}
@@ -416,17 +565,17 @@ export function CreatePresentationPanel() {
             disabled={planDisabled}
           />
 
-          <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 cursor-pointer hover:border-sky-200 transition-colors">
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 transition-colors hover:border-[var(--primary)]">
             <input
               type="checkbox"
               checked={generateImages}
               onChange={(event) => setGenerateImages(event.target.checked)}
               disabled={isBuilding}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[var(--primary)] focus:ring-sky-200"
+              className="mt-0.5 h-4 w-4 rounded border-[var(--border)] text-[var(--primary)] focus:ring-[color:var(--focus-ring)]"
             />
-            <span className="text-sm text-slate-700">
-              <span className="font-medium text-slate-900">Генерировать иллюстрации</span>
-              <span className="block text-slate-500 mt-0.5">
+            <span className="text-sm text-[var(--foreground)]">
+              <span className="font-medium text-[var(--foreground)]">Генерировать иллюстрации</span>
+              <span className="mt-0.5 block text-[var(--muted)]">
                 ИИ создаст картинки для части слайдов (Polza). Снимите галочку, чтобы собрать только текст и
                 оформление — быстрее и без запросов к генератору изображений.
               </span>
@@ -439,8 +588,8 @@ export function CreatePresentationPanel() {
               onClick={handleBuild}
               disabled={isBuilding || buildStatus === "ready"}
               title={buildDisabledReason ?? undefined}
-              className={`flex-1 rounded-xl border border-sky-200 bg-white px-4 py-3 text-sm font-semibold text-[var(--primary)] transition-colors ${
-                canBuild && !isBuilding ? "hover:bg-sky-50" : "opacity-70"
+              className={`flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--primary)] transition-colors ${
+                canBuild && !isBuilding ? "hover:border-[var(--primary)] hover:bg-[var(--surface-muted)]" : "opacity-70"
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {isBuilding
@@ -455,7 +604,7 @@ export function CreatePresentationPanel() {
                 type="button"
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+                className="flex-1 rounded-xl bg-[var(--success-text)] px-4 py-3 text-sm font-semibold text-[var(--surface)] transition-colors hover:opacity-90 disabled:opacity-60"
               >
                 {isDownloading ? "Скачивание…" : "Скачать .pptx"}
               </button>
@@ -467,9 +616,28 @@ export function CreatePresentationPanel() {
           ) : null}
 
           {buildStatus === "ready" && slideCount !== null ? (
-            <p className="text-sm text-emerald-700">
+            <p className="text-sm text-[var(--success-text)]">
               Готово: {slideCount} слайд(ов). После правки плана сохраните его и соберите файл заново.
             </p>
+          ) : null}
+
+          {buildStatus === "ready" ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={handleSavePresentation}
+                className="rounded-xl bg-[var(--primary)] px-4 py-3 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-dark)]"
+              >
+                Сохранить презентацию
+              </button>
+              <button
+                type="button"
+                onClick={handleFullReset}
+                className="rounded-xl border border-[var(--danger-border)] bg-[var(--danger-bg)] px-4 py-3 text-sm font-semibold text-[var(--danger-text)] transition-colors hover:opacity-85"
+              >
+                Полный сброс презентации и плана
+              </button>
+            </div>
           ) : null}
         </div>
       ) : null}

@@ -36,8 +36,8 @@ export function GuestGuard({ children }: GuestGuardProps) {
 
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
-        <p className="text-sm text-slate-500">Загрузка…</p>
+      <div className="flex min-h-screen items-center justify-center bg-[var(--background)]">
+        <p className="text-sm text-[var(--muted)]">Загрузка…</p>
       </div>
     );
   }

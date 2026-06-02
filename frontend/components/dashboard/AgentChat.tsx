@@ -86,16 +86,16 @@ export function AgentChat() {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="border-b border-slate-100 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm">
+      <div className="flex flex-col gap-4 border-b border-[var(--border)] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">ИИ-агенты</h2>
-          <p className="text-sm text-slate-500">Выберите модель и задайте вопрос</p>
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">ИИ-агенты</h2>
+          <p className="text-sm text-[var(--muted)]">Выберите модель и задайте вопрос</p>
         </div>
 
         <div className="flex flex-wrap gap-2">
           {isLoadingAgents ? (
-            <span className="text-sm text-slate-400">Загрузка…</span>
+            <span className="text-sm text-[var(--subtle)]">Загрузка…</span>
           ) : (
             agents.map((agent) => (
               <button
@@ -106,10 +106,10 @@ export function AgentChat() {
                 title={agent.unavailable_reason ?? agent.description}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                   selectedAgentId === agent.id
-                    ? "bg-[var(--primary)] text-white"
+                    ? "bg-[var(--primary)] text-[var(--on-primary)]"
                     : agent.available
-                      ? "border border-slate-200 text-slate-700 hover:border-sky-200 hover:bg-sky-50"
-                      : "border border-slate-100 text-slate-300 cursor-not-allowed"
+                      ? "border border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)] hover:bg-[var(--surface-muted)]"
+                      : "cursor-not-allowed border border-[var(--border)] text-[var(--subtle)] opacity-60"
                 }`}
               >
                 {AGENT_LABELS[agent.id]}
@@ -121,19 +121,19 @@ export function AgentChat() {
       </div>
 
       {selectedAgent ? (
-        <div className="px-6 py-2 bg-slate-50 border-b border-slate-100 text-xs text-slate-500">
+        <div className="border-b border-[var(--border)] bg-[var(--surface-muted)] px-6 py-2 text-xs text-[var(--muted)]">
           {selectedAgent.description}
           {selectedAgent.available ? (
-            <span className="ml-2 text-slate-400">· модель: {selectedAgent.model}</span>
+            <span className="ml-2 text-[var(--subtle)]">· модель: {selectedAgent.model}</span>
           ) : (
             <span className="ml-2 text-amber-600">· {selectedAgent.unavailable_reason}</span>
           )}
         </div>
       ) : null}
 
-      <div className="h-80 overflow-y-auto px-6 py-4 space-y-4 bg-slate-50/50">
+      <div className="h-80 space-y-4 overflow-y-auto bg-[var(--surface-muted)] px-6 py-4">
         {messages.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-12">
+          <p className="py-12 text-center text-sm text-[var(--subtle)]">
             Напишите сообщение, чтобы начать диалог с выбранным агентом
           </p>
         ) : (
@@ -145,8 +145,8 @@ export function AgentChat() {
               <div
                 className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
                   message.role === "user"
-                    ? "bg-[var(--primary)] text-white"
-                    : "bg-white border border-slate-200 text-slate-800"
+                    ? "bg-[var(--primary)] text-[var(--on-primary)]"
+                    : "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]"
                 }`}
               >
                 {message.content}
@@ -155,16 +155,16 @@ export function AgentChat() {
           ))
         )}
         {isSending ? (
-          <p className="text-sm text-slate-400 animate-pulse">Агент печатает…</p>
+          <p className="animate-pulse text-sm text-[var(--subtle)]">Агент печатает…</p>
         ) : null}
         <div ref={messagesEndRef} />
       </div>
 
       {error ? (
-        <p className="mx-6 mb-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        <p className="mx-6 mb-2 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-text)]">{error}</p>
       ) : null}
 
-      <form onSubmit={handleSubmit} className="border-t border-slate-100 px-6 py-4 flex gap-3">
+      <form onSubmit={handleSubmit} className="flex gap-3 border-t border-[var(--border)] px-6 py-4">
         <input
           type="text"
           value={input}
@@ -175,12 +175,12 @@ export function AgentChat() {
               : "Агент недоступен"
           }
           disabled={isSending || !selectedAgent?.available}
-          className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-50 disabled:text-slate-400"
+          className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 py-2.5 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[color:var(--focus-ring)] disabled:bg-[var(--surface-muted)] disabled:text-[var(--subtle)]"
         />
         <button
           type="submit"
           disabled={isSending || !selectedAgent?.available || !input.trim()}
-          className="rounded-xl bg-[var(--primary)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[var(--primary-dark)] disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+          className="rounded-xl bg-[var(--primary)] px-5 py-2.5 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-dark)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSending ? "…" : "Отправить"}
         </button>

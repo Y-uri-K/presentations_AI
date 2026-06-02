@@ -4,6 +4,9 @@ import re
 from datetime import datetime
 from typing import List, Optional, Tuple
 
+from fastapi import HTTPException, status
+
+from app.ai.safety import is_safety_rejection
 from app.config import get_settings
 from app.services.outline_limits import count_outline_slides, truncate_outline
 from app.services.presentation_gamma.prompts import outline_system_prompt
@@ -66,6 +69,14 @@ def format_outline_prompt(
 
 def normalize_stored_outline(raw: str, *, fallback_title: str) -> Tuple[str, str]:
     """TITLE + markdown, обрезка до лимита слайдов."""
+    if is_safety_rejection(raw):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "ИИ отклонил запрос как потенциально рискованный, поэтому план не был создан. "
+                "Переформулируйте тему нейтральнее или выберите другого ИИ-агента."
+            ),
+        )
     title = extract_presentation_title(raw, fallback=fallback_title)
     body = strip_title_tag(raw)
     body = truncate_outline(body)

@@ -28,8 +28,8 @@ export default function RegisterPage() {
       }
     >
       <div className="mb-8">
-        <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Регистрация</h2>
-        <p className="mt-1 text-sm text-slate-500">Заполните данные и подтвердите почту</p>
+        <h2 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">Регистрация</h2>
+        <p className="mt-1 text-sm text-[var(--muted)]">Заполните данные и подтвердите почту</p>
       </div>
 
       <RegisterForm />

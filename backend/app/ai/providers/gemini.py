@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 
 from app.ai.http_errors import raise_provider_http_error
 from app.ai.providers.polza_chat import polza_chat_completions
+from app.ai.safety import raise_if_safety_rejection
 from app.ai.types import AgentInfo, ChatMessage
 from app.config import get_settings
 
@@ -93,4 +94,6 @@ class GeminiProvider:
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Gemini вернула пустой ответ",
             )
-        return text.strip()
+        result = text.strip()
+        raise_if_safety_rejection(result, provider_name="Gemini")
+        return result

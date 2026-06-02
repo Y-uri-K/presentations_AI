@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { ROUTES } from "@/lib/auth/constants";
@@ -14,15 +15,22 @@ export function AppHeader() {
   }
 
   return (
-    <header className="border-b border-slate-200/80 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+    <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface)]/85 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <span className="text-lg font-semibold text-slate-900">AIDeck</span>
+        <Link href={ROUTES.dashboard} className="text-lg font-semibold text-[var(--foreground)]">
+          AIDeck
+        </Link>
         <div className="flex items-center gap-3">
-          <span className="hidden sm:inline text-sm text-slate-500">Личный кабинет</span>
+          <Link
+            href={ROUTES.profile}
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--foreground)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--surface-muted)]"
+          >
+            Личный кабинет
+          </Link>
           <button
             type="button"
             onClick={handleLogout}
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:border-sky-200 hover:bg-sky-50"
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
           >
             Выйти
           </button>

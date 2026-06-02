@@ -35,8 +35,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   if (!allowed) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
-        <p className="text-sm text-slate-500">Проверка авторизации…</p>
+      <div className="flex min-h-screen items-center justify-center bg-[var(--background)]">
+        <p className="text-sm text-[var(--muted)]">Проверка авторизации…</p>
       </div>
     );
   }

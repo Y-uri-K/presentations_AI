@@ -14,8 +14,12 @@ from app.schemas.presentations import (
     PresentationBuildRequest,
     PresentationBuildResponse,
     PresentationCreateResponse,
+    PresentationDeleteResponse,
+    PresentationListItem,
     PresentationOutlineUpdateRequest,
     PresentationOutlineUpdateResponse,
+    PresentationRenameRequest,
+    PresentationRenameResponse,
     PresentationStatusResponse,
 )
 from app.services import presentation_build_service as build_service
@@ -31,6 +35,42 @@ def _slide_count(presentation) -> Optional[int]:
     if isinstance(slides, list):
         return len(slides)
     return None
+
+
+def _template_meta(db: Session, presentation) -> tuple[Optional[str], Optional[str]]:
+    if presentation.template_id is None:
+        return None, None
+    from app.models import UserTemplate
+
+    template = db.get(UserTemplate, presentation.template_id)
+    if template is None:
+        return None, None
+    return template.name, template.file_type
+
+
+def _list_item(db: Session, presentation) -> PresentationListItem:
+    template_name, template_file_type = _template_meta(db, presentation)
+    return PresentationListItem(
+        id=presentation.id,
+        title=presentation.title,
+        status=presentation.status,
+        template_id=presentation.template_id,
+        template_name=template_name,
+        template_file_type=template_file_type,
+        slide_count=_slide_count(presentation),
+        has_download=bool(presentation.pptx_data),
+        created_at=presentation.created_at,
+        updated_at=presentation.updated_at,
+    )
+
+
+@router.get("", response_model=List[PresentationListItem])
+def list_presentations(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    items = presentations.list_user_presentations(db, current_user.id)
+    return [_list_item(db, item) for item in items]
 
 
 @router.post("/create", response_model=PresentationCreateResponse)
@@ -132,12 +172,15 @@ async def get_presentation_status(
         user_id=current_user.id,
         presentation_id=presentation_id,
     )
+    template_name, template_file_type = _template_meta(db, presentation)
     return PresentationStatusResponse(
         id=presentation.id,
         status=presentation.status,
         title=presentation.title,
         outline=presentation.outline,
         template_id=presentation.template_id,
+        template_name=template_name,
+        template_file_type=template_file_type,
         build_stage=presentation.build_stage,
         error_message=presentation.error_message,
         slide_count=_slide_count(presentation),
@@ -145,6 +188,32 @@ async def get_presentation_status(
         created_at=presentation.created_at,
         updated_at=presentation.updated_at,
     )
+
+
+@router.patch("/{presentation_id}", response_model=PresentationRenameResponse)
+def rename_presentation(
+    presentation_id: int,
+    payload: PresentationRenameRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    presentation = presentations.rename_presentation(
+        db,
+        user=current_user,
+        presentation_id=presentation_id,
+        title=payload.title,
+    )
+    return PresentationRenameResponse(presentation=_list_item(db, presentation))
+
+
+@router.delete("/{presentation_id}", response_model=PresentationDeleteResponse)
+def delete_presentation(
+    presentation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    presentations.delete_presentation(db, user=current_user, presentation_id=presentation_id)
+    return PresentationDeleteResponse()
 
 
 @router.get("/{presentation_id}/download")

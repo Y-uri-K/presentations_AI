@@ -28,20 +28,31 @@ export function TemplatesPanel() {
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadTemplates() {
-    setError(null);
-    try {
-      const items = await fetchTemplates();
-      setTemplates(items);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось загрузить список шаблонов");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
   useEffect(() => {
-    loadTemplates();
+    let cancelled = false;
+
+    async function loadInitialTemplates() {
+      try {
+        const items = await fetchTemplates();
+        if (!cancelled) {
+          setTemplates(items);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof ApiError ? err.message : "Не удалось загрузить список шаблонов");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadInitialTemplates();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -132,17 +143,17 @@ export function TemplatesPanel() {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 flex flex-col min-h-[280px]">
+    <div className="flex min-h-[280px] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-slate-900">Шаблоны</h2>
-          <p className="mt-1 text-sm text-slate-500">PPTX/PDF — выберите активный шаблон</p>
+          <h2 className="font-semibold text-[var(--foreground)]">Шаблоны</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">PPTX/PDF — выберите активный шаблон</p>
         </div>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className="shrink-0 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--primary-dark)] disabled:opacity-60 transition-colors"
+          className="shrink-0 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-dark)] disabled:opacity-60"
         >
           {isUploading ? "Загрузка…" : "Загрузить"}
         </button>
@@ -156,18 +167,18 @@ export function TemplatesPanel() {
       </div>
 
       {error ? (
-        <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        <p className="mt-3 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-text)]">{error}</p>
       ) : null}
 
       <div className="mt-4 flex-1">
         {isLoading ? (
-          <p className="text-sm text-slate-400">Загрузка списка…</p>
+          <p className="text-sm text-[var(--subtle)]">Загрузка списка…</p>
         ) : templates.length === 0 ? (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-[var(--subtle)]">
             Пока нет шаблонов. Нажмите «Загрузить», чтобы добавить презентацию.
           </p>
         ) : (
-          <ul className="space-y-2 max-h-48 overflow-y-auto pr-1">
+          <ul className="max-h-48 space-y-2 overflow-y-auto pr-1">
             {templates.map((template) => {
               const isSelected = selectedTemplateId === template.id;
               return (
@@ -175,8 +186,8 @@ export function TemplatesPanel() {
                 key={template.id}
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
                   isSelected
-                    ? "border-[var(--primary)] bg-sky-50 ring-1 ring-sky-200"
-                    : "border-slate-100 bg-slate-50/80"
+                    ? "border-[var(--primary)] bg-[var(--accent-light)] ring-1 ring-[color:var(--focus-ring)]"
+                    : "border-[var(--border)] bg-[var(--surface-muted)]"
                 }`}
               >
                 <button
@@ -186,14 +197,14 @@ export function TemplatesPanel() {
                   className={`shrink-0 h-4 w-4 rounded-full border-2 flex items-center justify-center ${
                     isSelected
                       ? "border-[var(--primary)] bg-[var(--primary)]"
-                      : "border-slate-300 bg-white hover:border-sky-300"
+                      : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--primary)]"
                   }`}
                 >
                   {isSelected ? (
-                    <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--on-primary)]" />
                   ) : null}
                 </button>
-                <span className="shrink-0 rounded-md bg-white border border-slate-200 px-1.5 py-0.5 text-[10px] font-bold uppercase text-slate-500">
+                <span className="shrink-0 rounded-md border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[var(--muted)]">
                   {template.file_type}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -205,7 +216,7 @@ export function TemplatesPanel() {
                         onChange={(event) => setEditingName(event.target.value)}
                         maxLength={255}
                         disabled={renamingId === template.id}
-                        className="w-full min-w-0 rounded-md border border-sky-200 px-2 py-1 text-sm outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200"
+                        className="w-full min-w-0 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[color:var(--focus-ring)]"
                         onKeyDown={(event) => {
                           if (event.key === "Enter") {
                             event.preventDefault();
@@ -220,7 +231,7 @@ export function TemplatesPanel() {
                         type="button"
                         onClick={() => saveRename(template.id)}
                         disabled={renamingId === template.id}
-                        className="shrink-0 text-xs font-medium text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+                        className="shrink-0 text-xs font-medium text-[var(--success-text)] hover:opacity-80 disabled:opacity-50"
                       >
                         {renamingId === template.id ? "…" : "OK"}
                       </button>
@@ -228,15 +239,15 @@ export function TemplatesPanel() {
                         type="button"
                         onClick={cancelEditing}
                         disabled={renamingId === template.id}
-                        className="shrink-0 text-xs font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50"
+                        className="shrink-0 text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
                       >
                         ✕
                       </button>
                     </div>
                   ) : (
-                    <p className="truncate text-sm font-medium text-slate-800">{template.name}</p>
+                    <p className="truncate text-sm font-medium text-[var(--foreground)]">{template.name}</p>
                   )}
-                  <p className="truncate text-xs text-slate-400">
+                  <p className="truncate text-xs text-[var(--subtle)]">
                     {formatFileSize(template.size_bytes)}
                   </p>
                 </div>
@@ -244,7 +255,7 @@ export function TemplatesPanel() {
                   <button
                     type="button"
                     onClick={() => startEditing(template)}
-                    className="shrink-0 text-xs font-medium text-slate-600 hover:text-slate-800"
+                    className="shrink-0 text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
                   >
                     Имя
                   </button>
@@ -260,7 +271,7 @@ export function TemplatesPanel() {
                   type="button"
                   onClick={() => handleDelete(template.id)}
                   disabled={deletingId === template.id}
-                  className="shrink-0 text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                  className="shrink-0 text-xs font-medium text-[var(--danger-text)] hover:opacity-80 disabled:opacity-50"
                 >
                   {deletingId === template.id ? "…" : "Удалить"}
                 </button>

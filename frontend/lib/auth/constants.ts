@@ -7,4 +7,5 @@ export const ROUTES = {
   register: "/register",
   forgotPassword: "/forgot-password",
   dashboard: POST_LOGIN_REDIRECT,
+  profile: "/profile",
 } as const;

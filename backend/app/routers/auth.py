@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Query
+import base64
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -15,11 +17,24 @@ from app.schemas.auth import (
     RegisterVerifyRequest,
     ResendCodeRequest,
     TokenResponse,
+    UpdateProfileRequest,
     UserMeResponse,
 )
 from app.services import auth_service, password_reset_service, registration_service as registration
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024
+
+
+def _user_response(user: User) -> UserMeResponse:
+    return UserMeResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        profile_image=user.profile_image,
+        role="user",
+    )
 
 
 @router.get("/check-username", response_model=AvailabilityResponse)
@@ -92,11 +107,55 @@ def refresh_tokens(payload: RefreshTokenRequest, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserMeResponse)
 def me(current_user: User = Depends(get_current_user)):
-    return UserMeResponse(
-        id=current_user.id,
-        username=current_user.username,
-        email=current_user.email,
+    return _user_response(current_user)
+
+
+@router.patch("/me", response_model=UserMeResponse)
+def update_me(
+    payload: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    user = auth_service.update_user_profile(db, user=current_user, username=payload.username)
+    return _user_response(user)
+
+
+@router.post("/me/profile-image", response_model=UserMeResponse)
+async def update_profile_image(
+    image: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if image.content_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Загрузите изображение JPG, PNG, WEBP или GIF",
+        )
+
+    content = await image.read()
+    if len(content) > MAX_PROFILE_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Файл профиля должен быть не больше 2 МБ",
+        )
+
+    encoded = base64.b64encode(content).decode("ascii")
+    data_url = f"data:{image.content_type};base64,{encoded}"
+    user = auth_service.update_user_profile_image(
+        db,
+        user=current_user,
+        profile_image=data_url,
     )
+    return _user_response(user)
+
+
+@router.delete("/me", response_model=MessageResponse)
+def delete_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    auth_service.delete_user_account(db, user=current_user)
+    return MessageResponse(message="Аккаунт удалён")
 
 
 @router.post("/password-reset/request", response_model=MessageResponse)

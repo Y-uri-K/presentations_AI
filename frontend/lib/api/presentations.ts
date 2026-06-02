@@ -49,8 +49,23 @@ export type PresentationStatusResponse = {
   title: string;
   outline: string | null;
   template_id: number | null;
+  template_name: string | null;
+  template_file_type: "pptx" | "pdf" | null;
   build_stage: string | null;
   error_message: string | null;
+  slide_count: number | null;
+  has_download: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PresentationListItem = {
+  id: number;
+  title: string;
+  status: PresentationStatus;
+  template_id: number | null;
+  template_name: string | null;
+  template_file_type: "pptx" | "pdf" | null;
   slide_count: number | null;
   has_download: boolean;
   created_at: string;
@@ -63,6 +78,25 @@ export type PresentationOutlineUpdateResponse = {
   title: string;
   status: PresentationStatus;
 };
+
+async function apiAuthFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  const auth = authHeaders();
+  Object.entries(auth).forEach(([key, value]) => headers.set(key, value));
+
+  const response = await fetch(`${API_URL}${path}`, { ...init, headers });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new ApiError(parseApiError(errorData, "Ошибка запроса"), response.status);
+  }
+
+  return (await response.json()) as T;
+}
+
+export async function fetchPresentations(): Promise<PresentationListItem[]> {
+  return apiAuthFetch<PresentationListItem[]>("/api/presentations");
+}
 
 export async function createPresentation(payload: {
   prompt: string;
@@ -113,6 +147,27 @@ export async function updatePresentationOutline(
   }
 
   return (await response.json()) as PresentationOutlineUpdateResponse;
+}
+
+export async function renamePresentation(
+  presentationId: number,
+  title: string,
+): Promise<PresentationListItem> {
+  const data = await apiAuthFetch<{ presentation: PresentationListItem }>(
+    `/api/presentations/${presentationId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: title.trim() }),
+    },
+  );
+  return data.presentation;
+}
+
+export async function deletePresentation(presentationId: number): Promise<void> {
+  await apiAuthFetch<{ message: string }>(`/api/presentations/${presentationId}`, {
+    method: "DELETE",
+  });
 }
 
 function sleep(ms: number): Promise<void> {
