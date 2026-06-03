@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import {
   ApiError,
   deleteCurrentAccount,
+  deleteProfileImage,
   fetchMe,
   updateMe,
   uploadProfileImage,
@@ -20,6 +21,7 @@ import {
   getSavedAppTheme,
   type AppTheme,
 } from "@/components/theme/ThemeInitializer";
+import { ErrorMessage } from "@/components/ui/ErrorMessage";
 
 type StatusKind = "success" | "error" | "info";
 
@@ -36,6 +38,20 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
 }
 
+function validateUsername(value: string) {
+  const trimmed = value.trim();
+  if (trimmed.length < 3) {
+    return "Логин — не менее 3 символов";
+  }
+  if (trimmed.length > 64) {
+    return "Логин — не более 64 символов";
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) {
+    return "Только латиница, цифры и подчёркивание";
+  }
+  return null;
+}
+
 export function ProfileClient() {
   const router = useRouter();
   const [user, setUser] = useState<UserMeResponse | null>(null);
@@ -44,12 +60,15 @@ export function ProfileClient() {
   const [loading, setLoading] = useState(true);
   const [savingUsername, setSavingUsername] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [deletingImage, setDeletingImage] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [status, setStatus] = useState<StatusMessage | null>(null);
 
   const usernameChanged = useMemo(() => {
     return user ? username.trim() !== user.username : false;
   }, [user, username]);
+
+  const usernameError = usernameChanged ? validateUsername(username) : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -103,7 +122,7 @@ export function ProfileClient() {
     const accessToken = getAccessToken();
     const nextUsername = username.trim();
 
-    if (!accessToken || !user || !usernameChanged) {
+    if (!accessToken || !user || !usernameChanged || usernameError) {
       return;
     }
 
@@ -141,6 +160,26 @@ export function ProfileClient() {
     } finally {
       setUploadingImage(false);
       event.target.value = "";
+    }
+  }
+
+  async function handleDeleteImage() {
+    const accessToken = getAccessToken();
+    if (!accessToken || !user?.profile_image) {
+      return;
+    }
+
+    setDeletingImage(true);
+    setStatus(null);
+
+    try {
+      const updated = await deleteProfileImage(accessToken);
+      setUser(updated);
+      setStatus({ kind: "success", text: "Фото профиля удалено" });
+    } catch (error) {
+      setStatus({ kind: "error", text: getErrorMessage(error, "Не удалось удалить фото") });
+    } finally {
+      setDeletingImage(false);
     }
   }
 
@@ -182,9 +221,9 @@ export function ProfileClient() {
 
   if (!user) {
     return (
-      <div className="rounded-2xl border border-[var(--danger-border)] bg-[var(--danger-bg)] p-8 text-sm text-[var(--danger-text)] shadow-sm">
+      <ErrorMessage className="rounded-2xl p-8 shadow-sm">
         Профиль не найден.
-      </div>
+      </ErrorMessage>
     );
   }
 
@@ -216,23 +255,39 @@ export function ProfileClient() {
             </h1>
             <p className="mt-2 text-sm text-[var(--muted)]">{user.email}</p>
 
-            <label className="mt-5 inline-flex cursor-pointer items-center rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] shadow-sm transition-colors hover:bg-[var(--primary-dark)]">
-              {uploadingImage ? "Загрузка…" : "Сменить / добавить фото"}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                className="sr-only"
-                disabled={uploadingImage}
-                onChange={handleImageChange}
-              />
-            </label>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <label className="inline-flex cursor-pointer items-center rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] shadow-sm transition-colors hover:bg-[var(--primary-dark)]">
+                {uploadingImage
+                  ? "Загрузка…"
+                  : user.profile_image
+                    ? "Сменить фото"
+                    : "Добавить фото"}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="sr-only"
+                  disabled={uploadingImage}
+                  onChange={handleImageChange}
+                />
+              </label>
+              {user.profile_image ? (
+                <button
+                  type="button"
+                  onClick={handleDeleteImage}
+                  disabled={deletingImage}
+                  className="rounded-xl border border-[var(--danger-border)] bg-[var(--danger-bg)] px-4 py-2 text-sm font-semibold text-[var(--danger-text)] transition-colors hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {deletingImage ? "Удаление…" : "Удалить фото"}
+                </button>
+              ) : null}
+            </div>
             <p className="mt-2 text-xs text-[var(--muted)]">
               JPG, PNG, WEBP или GIF до 2 МБ. Новая фотография перезапишет старую.
             </p>
           </div>
         </div>
 
-        <form className="mt-8 border-t border-[var(--border)] pt-6" onSubmit={handleUsernameSubmit}>
+        <form className="mt-8 border-t border-[var(--border)] pt-6" onSubmit={handleUsernameSubmit} noValidate>
           <label className="block text-sm font-semibold text-[var(--foreground)]" htmlFor="username">
             Username
           </label>
@@ -240,39 +295,48 @@ export function ProfileClient() {
             <input
               id="username"
               value={username}
-              minLength={3}
               maxLength={64}
-              pattern="[A-Za-z0-9_]+"
               onChange={(event) => setUsername(event.target.value)}
-              className="min-h-11 flex-1 rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 text-sm text-[var(--foreground)] outline-none transition-colors focus:border-[var(--primary)]"
+              aria-invalid={usernameError ? true : undefined}
+              className={`min-h-11 flex-1 rounded-xl border bg-[var(--background)] px-4 text-sm text-[var(--foreground)] outline-none transition-colors ${
+                usernameError
+                  ? "border-[var(--danger-border)] focus:border-[var(--danger-text)] focus:ring-4 focus:ring-[color:var(--danger-bg)]"
+                  : "border-[var(--border)] focus:border-[var(--primary)]"
+              }`}
               placeholder="username"
             />
             <button
               type="submit"
-              disabled={!usernameChanged || savingUsername}
+              disabled={!usernameChanged || Boolean(usernameError) || savingUsername}
               className="rounded-xl bg-[var(--primary)] px-5 py-2.5 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-dark)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {savingUsername ? "Сохранение…" : "Сохранить"}
             </button>
           </div>
-          <p className="mt-2 text-xs text-[var(--muted)]">
-            Допустимы латинские буквы, цифры и подчёркивание.
-          </p>
+          {usernameError ? (
+            <ErrorMessage className="mt-2 text-xs" variant="text">
+              {usernameError}
+            </ErrorMessage>
+          ) : (
+            <p className="mt-2 text-xs text-[var(--muted)]">
+              Допустимы латинские буквы, цифры и подчёркивание.
+            </p>
+          )}
         </form>
 
-        {status && (
+        {status?.kind === "error" ? (
+          <ErrorMessage className="mt-6">{status.text}</ErrorMessage>
+        ) : status ? (
           <div
             className={`mt-6 rounded-xl border px-4 py-3 text-sm ${
-              status.kind === "error"
-                ? "border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger-text)]"
-                : status.kind === "success"
+              status.kind === "success"
                   ? "border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success-text)]"
                   : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--foreground)]"
             }`}
           >
             {status.text}
           </div>
-        )}
+        ) : null}
       </section>
 
       <aside className="space-y-6">
@@ -303,16 +367,6 @@ export function ProfileClient() {
               Тёмная
             </button>
           </div>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">Роль</h2>
-          <div className="mt-3 inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-1 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
-            {user.role}
-          </div>
-          <p className="mt-3 text-sm text-[var(--muted)]">
-            Здесь будет отображаться роль пользователя: user или admin.
-          </p>
         </section>
 
         <section className="rounded-2xl border border-[var(--danger-border)] bg-[var(--danger-bg)] p-6 shadow-sm">

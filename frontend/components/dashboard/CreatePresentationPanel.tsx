@@ -21,6 +21,8 @@ import {
 import { pickPreferredAgent } from "@/lib/agents/pickPreferredAgent";
 import { PresentationPlanEditor } from "@/components/dashboard/PresentationPlanEditor";
 import { useTemplateSelection } from "@/components/dashboard/TemplateSelectionContext";
+import { ErrorMessage } from "@/components/ui/ErrorMessage";
+import { isPresentationNotFoundError } from "@/lib/api/errors";
 import { outlineTitleFromMarkdown, parseOutline } from "@/lib/outline/parseOutline";
 import { MAX_PRESENTATION_SLIDES } from "@/lib/presentation/limits";
 
@@ -226,7 +228,11 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
       } catch (err) {
         if (!cancelled) {
           clearActivePresentationId();
-          setError(err instanceof ApiError ? err.message : "Не удалось восстановить презентацию");
+          if (isPresentationNotFoundError(err)) {
+            clearCurrentPresentationState();
+          } else {
+            setError(err instanceof ApiError ? err.message : "Не удалось восстановить презентацию");
+          }
         }
       } finally {
         if (!cancelled) {
@@ -304,7 +310,11 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
       setSlideCount(null);
       return true;
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось сохранить план");
+      if (isPresentationNotFoundError(err)) {
+        clearCurrentPresentationState();
+      } else {
+        setError(err instanceof ApiError ? err.message : "Не удалось сохранить план");
+      }
       return false;
     } finally {
       setIsSavingOutline(false);
@@ -395,8 +405,12 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
         setError(result.error_message);
       }
     } catch (err) {
-      setBuildStatus("failed");
-      setError(err instanceof ApiError ? err.message : "Не удалось собрать презентацию");
+      if (isPresentationNotFoundError(err)) {
+        clearCurrentPresentationState();
+      } else {
+        setBuildStatus("failed");
+        setError(err instanceof ApiError ? err.message : "Не удалось собрать презентацию");
+      }
     } finally {
       setIsBuilding(false);
     }
@@ -411,7 +425,11 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
     try {
       await downloadPresentation(presentationId, presentationTitle);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось скачать файл");
+      if (isPresentationNotFoundError(err)) {
+        clearCurrentPresentationState();
+      } else {
+        setError(err instanceof ApiError ? err.message : "Не удалось скачать файл");
+      }
     } finally {
       setIsDownloading(false);
     }
@@ -539,7 +557,7 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
         </div>
 
         {error ? (
-          <p className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-text)]">{error}</p>
+          <ErrorMessage>{error}</ErrorMessage>
         ) : null}
         {notice ? (
           <p className="rounded-lg border border-[var(--success-border)] bg-[var(--success-bg)] px-3 py-2 text-sm text-[var(--success-text)]">{notice}</p>

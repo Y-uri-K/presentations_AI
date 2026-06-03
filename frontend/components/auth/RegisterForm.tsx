@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldErrors } from "react-hook-form";
 
 import { AuthField } from "@/components/auth/AuthField";
 import {
@@ -21,12 +21,18 @@ import {
   type RegisterFormValues,
 } from "@/lib/validation/registerSchema";
 
+function isPasswordInvalid(value: string) {
+  return value.length < 8 || !/[A-Za-zА-Яа-я]/.test(value) || !/\d/.test(value);
+}
+
 export function RegisterForm() {
   const router = useRouter();
   const [codeSent, setCodeSent] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSendingCode, setIsSendingCode] = useState(false);
+  const [shakePassword, setShakePassword] = useState(false);
+  const [shakePasswordConfirm, setShakePasswordConfirm] = useState(false);
   const { isOnCooldown, cooldownSeconds, applyRateLimitError } = useEmailSendCooldown();
 
   const {
@@ -37,7 +43,7 @@ export function RegisterForm() {
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerCompleteSchema),
-    mode: "onBlur",
+    mode: "onChange",
     reValidateMode: "onChange",
     defaultValues: {
       username: "",
@@ -48,6 +54,15 @@ export function RegisterForm() {
       agreement: false,
     },
   });
+
+  function triggerShake(target: "password" | "password_confirm") {
+    const setter = target === "password" ? setShakePassword : setShakePasswordConfirm;
+    setter(false);
+    window.requestAnimationFrame(() => {
+      setter(true);
+      window.setTimeout(() => setter(false), 420);
+    });
+  }
 
   async function handleSendCode() {
     setFormError(null);
@@ -68,6 +83,9 @@ export function RegisterForm() {
         const field = issue.path[0];
         if (field && typeof field === "string") {
           setError(field as keyof RegisterFormValues, { message: issue.message });
+        }
+        if (field === "password" || field === "password_confirm") {
+          triggerShake(field);
         }
       });
       setIsSendingCode(false);
@@ -111,8 +129,20 @@ export function RegisterForm() {
     }
   }
 
+  function onInvalid(errors: FieldErrors<RegisterFormValues>) {
+    if (errors.password) {
+      triggerShake("password");
+    }
+    if (errors.password_confirm) {
+      triggerShake("password_confirm");
+    }
+  }
+
+  const passwordRegistration = register("password");
+  const passwordConfirmRegistration = register("password_confirm");
+
   return (
-    <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form className="space-y-4" onSubmit={handleSubmit(onSubmit, onInvalid)} noValidate>
       <AuthField
         id="username"
         label="Логин"
@@ -137,7 +167,14 @@ export function RegisterForm() {
         placeholder="не менее 8 символов, буква и цифра"
         autoComplete="new-password"
         error={errors.password?.message}
-        {...register("password")}
+        shake={shakePassword}
+        {...passwordRegistration}
+        onBlur={(event) => {
+          void passwordRegistration.onBlur(event);
+          if (isPasswordInvalid(event.target.value)) {
+            triggerShake("password");
+          }
+        }}
       />
       <AuthField
         id="password_confirm"
@@ -146,7 +183,15 @@ export function RegisterForm() {
         placeholder="повторите пароль"
         autoComplete="new-password"
         error={errors.password_confirm?.message}
-        {...register("password_confirm")}
+        shake={shakePasswordConfirm}
+        {...passwordConfirmRegistration}
+        onBlur={(event) => {
+          void passwordConfirmRegistration.onBlur(event);
+          const password = getValues("password");
+          if (!event.target.value || event.target.value !== password) {
+            triggerShake("password_confirm");
+          }
+        }}
       />
 
       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3">

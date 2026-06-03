@@ -228,6 +228,22 @@ export async function uploadProfileImage(
   return (await response.json()) as UserMeResponse;
 }
 
+export async function deleteProfileImage(accessToken: string): Promise<UserMeResponse> {
+  const response = await fetch(`${API_URL}/api/auth/me/profile-image`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new ApiError(parseApiError(errorData, "Не удалось удалить фото"), response.status);
+  }
+
+  return (await response.json()) as UserMeResponse;
+}
+
 export async function deleteCurrentAccount(accessToken: string): Promise<MessageResponse> {
   const response = await fetch(`${API_URL}/api/auth/me`, {
     method: "DELETE",

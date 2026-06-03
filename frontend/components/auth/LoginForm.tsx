@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldErrors } from "react-hook-form";
 import { z } from "zod";
 
 import { AuthField } from "@/components/auth/AuthField";
@@ -14,16 +14,25 @@ import { saveTokens } from "@/lib/auth/token";
 
 const loginSchema = z.object({
   username: z.string().trim().min(3, "Введите логин"),
-  password: z.string().min(1, "Введите пароль"),
+  password: z
+    .string()
+    .min(8, "Пароль — не менее 8 символов")
+    .regex(/[A-Za-zА-Яа-я]/, "Пароль должен содержать букву")
+    .regex(/\d/, "Пароль должен содержать цифру"),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 const INVALID_CREDENTIALS_MESSAGE = "Логин или пароль неправильные";
 
+function isPasswordInvalid(value: string) {
+  return value.length < 8 || !/[A-Za-zА-Яа-я]/.test(value) || !/\d/.test(value);
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
+  const [shakePassword, setShakePassword] = useState(false);
 
   const {
     register,
@@ -31,11 +40,21 @@ export function LoginForm() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
+    mode: "onChange",
+    reValidateMode: "onChange",
     defaultValues: {
       username: "",
       password: "",
     },
   });
+
+  function triggerPasswordShake() {
+    setShakePassword(false);
+    window.requestAnimationFrame(() => {
+      setShakePassword(true);
+      window.setTimeout(() => setShakePassword(false), 420);
+    });
+  }
 
   async function onSubmit(data: LoginFormValues) {
     setFormError(null);
@@ -50,14 +69,23 @@ export function LoginForm() {
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         setFormError(INVALID_CREDENTIALS_MESSAGE);
+        triggerPasswordShake();
         return;
       }
       setFormError(error instanceof ApiError ? error.message : "Не удалось выполнить вход");
     }
   }
 
+  function onInvalid(errors: FieldErrors<LoginFormValues>) {
+    if (errors.password) {
+      triggerPasswordShake();
+    }
+  }
+
+  const passwordRegistration = register("password");
+
   return (
-    <form className="space-y-5" onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form className="space-y-5" onSubmit={handleSubmit(onSubmit, onInvalid)} noValidate>
       <AuthField
         id="username"
         label="Логин"
@@ -73,7 +101,14 @@ export function LoginForm() {
         placeholder="••••••••"
         autoComplete="current-password"
         error={errors.password?.message}
-        {...register("password")}
+        shake={shakePassword}
+        {...passwordRegistration}
+        onBlur={(event) => {
+          void passwordRegistration.onBlur(event);
+          if (isPasswordInvalid(event.target.value)) {
+            triggerPasswordShake();
+          }
+        }}
       />
 
       <div className="flex items-center justify-end">

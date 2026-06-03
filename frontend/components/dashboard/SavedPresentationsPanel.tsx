@@ -10,6 +10,8 @@ import {
   renamePresentation,
   type PresentationListItem,
 } from "@/lib/api/presentations";
+import { isPresentationNotFoundError } from "@/lib/api/errors";
+import { ErrorMessage } from "@/components/ui/ErrorMessage";
 
 type SavedPresentationsPanelProps = {
   refreshSignal: number;
@@ -101,7 +103,12 @@ export function SavedPresentationsPanel({ refreshSignal }: SavedPresentationsPan
       );
       cancelEditing();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось переименовать презентацию");
+      if (isPresentationNotFoundError(err)) {
+        setPresentations((prev) => prev.filter((item) => item.id !== presentationId));
+        cancelEditing();
+      } else {
+        setError(err instanceof ApiError ? err.message : "Не удалось переименовать презентацию");
+      }
     } finally {
       setRenamingId(null);
     }
@@ -117,7 +124,11 @@ export function SavedPresentationsPanel({ refreshSignal }: SavedPresentationsPan
     try {
       await downloadPresentation(item.id, item.title);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось скачать презентацию");
+      if (isPresentationNotFoundError(err)) {
+        setPresentations((prev) => prev.filter((presentation) => presentation.id !== item.id));
+      } else {
+        setError(err instanceof ApiError ? err.message : "Не удалось скачать презентацию");
+      }
     } finally {
       setDownloadingId(null);
     }
@@ -135,7 +146,11 @@ export function SavedPresentationsPanel({ refreshSignal }: SavedPresentationsPan
       await deletePresentation(item.id);
       setPresentations((prev) => prev.filter((presentation) => presentation.id !== item.id));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось удалить презентацию");
+      if (isPresentationNotFoundError(err)) {
+        setPresentations((prev) => prev.filter((presentation) => presentation.id !== item.id));
+      } else {
+        setError(err instanceof ApiError ? err.message : "Не удалось удалить презентацию");
+      }
     } finally {
       setDeletingId(null);
     }
@@ -151,9 +166,7 @@ export function SavedPresentationsPanel({ refreshSignal }: SavedPresentationsPan
       </div>
 
       {error ? (
-        <p className="mt-3 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-text)]">
-          {error}
-        </p>
+        <ErrorMessage className="mt-3">{error}</ErrorMessage>
       ) : null}
 
       <div className="mt-4 flex-1">

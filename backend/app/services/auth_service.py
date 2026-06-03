@@ -73,6 +73,14 @@ def update_user_profile_image(db: Session, *, user: User, profile_image: str) ->
     return user
 
 
+def delete_user_profile_image(db: Session, *, user: User) -> User:
+    user.profile_image = None
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 def delete_user_account(db: Session, *, user: User) -> None:
     db.delete(user)
     db.commit()

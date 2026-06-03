@@ -74,6 +74,25 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+@keyframes input-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+.animate-input-shake {
+  animation: input-shake 0.36s ease-in-out;
+}
+
 ::selection {
   background: var(--primary);
   color: var(--on-primary);

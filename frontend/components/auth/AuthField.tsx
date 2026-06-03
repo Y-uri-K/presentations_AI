@@ -7,12 +7,20 @@ type AuthFieldProps = React.InputHTMLAttributes<HTMLInputElement> & {
   label: string;
   hint?: string;
   error?: string;
+  shake?: boolean;
 };
 
 export const AuthField = forwardRef<HTMLInputElement, AuthFieldProps>(function AuthField(
-  { id, label, type = "text", placeholder, hint, error, className, ...rest },
+  { id, label, type = "text", placeholder, hint, error, shake = false, className, ...rest },
   ref,
 ) {
+  const fieldClassName = [
+    "space-y-1.5",
+    shake ? "animate-input-shake" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   const inputClassName = [
     "w-full rounded-xl border bg-[var(--background)] px-4 py-2.5 text-[var(--foreground)] placeholder:text-[var(--subtle)] transition-colors outline-none",
     error
@@ -24,7 +32,7 @@ export const AuthField = forwardRef<HTMLInputElement, AuthFieldProps>(function A
     .join(" ");
 
   return (
-    <div className="space-y-1.5">
+    <div className={fieldClassName}>
       <label htmlFor={id} className="block text-sm font-medium text-[var(--foreground)]">
         {label}
       </label>

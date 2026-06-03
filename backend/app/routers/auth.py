@@ -149,6 +149,15 @@ async def update_profile_image(
     return _user_response(user)
 
 
+@router.delete("/me/profile-image", response_model=UserMeResponse)
+def delete_profile_image(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    user = auth_service.delete_user_profile_image(db, user=current_user)
+    return _user_response(user)
+
+
 @router.delete("/me", response_model=MessageResponse)
 def delete_me(
     current_user: User = Depends(get_current_user),

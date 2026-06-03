@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { AuthField } from "@/components/auth/AuthField";
+import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import {
   ApiError,
   confirmPasswordReset,
@@ -159,7 +160,7 @@ export function ForgotPasswordForm() {
         <p className="rounded-lg border border-[var(--success-border)] bg-[var(--success-bg)] px-3 py-2 text-sm text-[var(--success-text)]">{statusMessage}</p>
       ) : null}
       {formError ? (
-        <p className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-text)]">{formError}</p>
+        <ErrorMessage>{formError}</ErrorMessage>
       ) : null}
 
       <button

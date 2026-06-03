@@ -13,6 +13,7 @@ import {
 } from "@/lib/api/templates";
 import { ApiError } from "@/lib/api/auth";
 import { useTemplateSelection } from "@/components/dashboard/TemplateSelectionContext";
+import { ErrorMessage } from "@/components/ui/ErrorMessage";
 
 const ACCEPT = ".pptx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
@@ -167,7 +168,7 @@ export function TemplatesPanel() {
       </div>
 
       {error ? (
-        <p className="mt-3 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger-text)]">{error}</p>
+        <ErrorMessage className="mt-3">{error}</ErrorMessage>
       ) : null}
 
       <div className="mt-4 flex-1">
