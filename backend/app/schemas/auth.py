@@ -30,12 +30,14 @@ class UserMeResponse(BaseModel):
     id: int
     username: str
     email: str
+    full_name: Optional[str] = None
     profile_image: Optional[str] = None
     role: str = "user"
 
 
 class UpdateProfileRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
+    full_name: Optional[str] = Field(default=None, max_length=255)
 
 
 class RegisterRequest(BaseModel):

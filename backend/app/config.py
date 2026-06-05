@@ -35,10 +35,6 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.2"
     ollama_timeout_seconds: int = 120
 
-    gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
-    gemini_timeout_seconds: int = 120
-
     polza_api_key: str = ""
     polza_base_url: str = "https://polza.ai/api/v1"
     polza_image_model: str = "google/gemini-2.5-flash-image"
@@ -57,7 +53,7 @@ class Settings(BaseSettings):
 
     presentation_source_max_size_mb: int = 10
     presentation_source_max_files: int = 5
-    presentation_default_agent: str = "gemini"
+    presentation_default_agent: str = "mimo"
     presentation_max_slides: int = 10
     presentation_max_generated_images: int = 4
     presentation_source_enrichment: bool = True
@@ -67,7 +63,9 @@ class Settings(BaseSettings):
     presentation_use_template_driven: bool = True
     presentation_blueprint_llm_phase2: bool = False
     presentation_blueprint_use_llm: bool = False
-    presentation_blueprint_use_polza: bool = True
+    presentation_blueprint_use_polza: bool = False
+    presentation_llm_fallback_agents: str = "mimo,ollama"
+    presentation_critical_fallback_agent: str = "polza"
     presentation_language: str = "Русский"
     presentation_tone: str = "деловой"
     presentation_text_content: str = "concise"

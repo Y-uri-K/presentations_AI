@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, JSON, LargeBinary, String, Text, func
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -14,6 +14,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     profile_image: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -57,6 +58,28 @@ class UserTemplate(Base):
     mime_type: Mapped[str] = mapped_column(String(128))
     size_bytes: Mapped[int] = mapped_column(BigInteger)
     file_data: Mapped[bytes] = mapped_column(LargeBinary)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    download_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class TemplateRating(Base):
+    __tablename__ = "template_ratings"
+    __table_args__ = (
+        UniqueConstraint("template_id", "user_id", name="uq_template_ratings_template_user"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    template_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("user_templates.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    rating: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

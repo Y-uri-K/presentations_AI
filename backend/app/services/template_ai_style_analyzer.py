@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from pptx.dml.color import RGBColor
 
-from app.ai.providers.polza_chat import polza_chat_completions
+from app.ai.registry import chat_with_agent_resilient
 from app.ai.types import ChatMessage
 from app.config import get_settings
 from app.schemas.template_blueprint import TemplateCatalog
@@ -69,14 +69,14 @@ def _catalog_payload(catalog: TemplateCatalog) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
-async def analyze_template_style_with_polza(
+async def analyze_template_style_with_ai(
     samples: List[SlideStyleSample],
     base: UserTemplateStyle,
     *,
     catalog: TemplateCatalog | None = None,
     geometry: TemplateGeometryReport | None = None,
 ) -> UserTemplateStyle:
-    """AI-анализ стиля шаблона через Polza (google/gemini-3.5-flash)."""
+    """AI-анализ стиля шаблона (по умолчанию MiMo, без автоматического Polza)."""
     if not samples:
         return base
 
@@ -119,18 +119,19 @@ async def analyze_template_style_with_polza(
   "diagram_schemes": ["card_grid", "horizontal_timeline", "chevron_process"]
 }}"""
 
+    agent_id = settings.presentation_default_agent or "mimo"
     try:
-        raw = await polza_chat_completions(
+        raw = await chat_with_agent_resilient(
+            agent_id,
             [ChatMessage(role="user", content=prompt)],
-            model=settings.polza_chat_model,
         )
         match = _JSON_RE.search(raw)
         if not match:
-            logger.warning("Polza анализ шаблона: JSON не найден в ответе")
+            logger.warning("Анализ шаблона (%s): JSON не найден в ответе", agent_id)
             return base
         data = json.loads(match.group(0))
     except Exception as exc:
-        logger.warning("Polza анализ шаблона не удался (%s): %s", settings.polza_chat_model, exc)
+        logger.warning("Анализ шаблона (%s) не удался: %s", agent_id, exc)
         return base
 
     def _from_palette(key: str, fallback: Optional[RGBColor]) -> Optional[RGBColor]:
@@ -199,13 +200,26 @@ async def analyze_template_style_with_polza(
     merged = apply_palette_to_style(merged, base.palette_hex)
 
     logger.info(
-        "Polza анализ шаблона OK (%s): палитра=%s, accent=%s, font=%s",
-        settings.polza_chat_model,
+        "Анализ шаблона OK (%s): палитра=%s, accent=%s, font=%s",
+        agent_id,
         ", ".join(merged.palette_hex[:6]),
         _rgb_to_hex(merged.accent_rgb) if merged.accent_rgb else "—",
         font_family,
     )
     return merged
+
+
+async def analyze_template_style_with_polza(
+    samples: List[SlideStyleSample],
+    base: UserTemplateStyle,
+    *,
+    catalog: TemplateCatalog | None = None,
+    geometry: TemplateGeometryReport | None = None,
+) -> UserTemplateStyle:
+    """Обратная совместимость — фактически MiMo + fallback."""
+    return await analyze_template_style_with_ai(
+        samples, base, catalog=catalog, geometry=geometry
+    )
 
 
 def _rgb_to_hex(rgb: Optional[RGBColor]) -> Optional[str]:

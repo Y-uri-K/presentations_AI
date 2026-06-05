@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `username`        VARCHAR(64)     NOT NULL,
   `email`           VARCHAR(255)    NOT NULL,
   `password_hash`   VARCHAR(255)    NOT NULL,
+  `full_name`       VARCHAR(255)    NULL,
   `profile_image`   LONGTEXT        NULL,
   `email_verified`  TINYINT(1)      NOT NULL DEFAULT 0,
   `created_at`      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,

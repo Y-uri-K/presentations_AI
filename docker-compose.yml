@@ -35,21 +35,15 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      # .venv с Windows-хоста несовместим с Linux — отдельный том в контейнере (как node_modules у frontend)
+      - backend_venv:/app/.venv
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command:
       [
-        "uv",
-        "run",
-        "uvicorn",
-        "app.main:app",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
-        "--reload",
-        "--log-level",
-        "info",
+        "sh",
+        "-c",
+        "uv sync --frozen --no-dev && exec uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log-level info",
       ]
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
@@ -145,5 +139,6 @@ services:
 
 volumes:
   mysql_data:
+  backend_venv:
   frontend_node_modules:
   frontend_next:

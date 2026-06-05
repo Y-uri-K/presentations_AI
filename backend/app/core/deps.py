@@ -34,6 +34,7 @@ def get_current_user(
         ) from None
 
     user_id = int(payload["sub"])
+    auth_service.ensure_user_profile_columns(db)
     user = auth_service.get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(

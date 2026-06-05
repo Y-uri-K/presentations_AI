@@ -36,7 +36,7 @@ async function apiAuthFetch<T>(path: string, init: RequestInit = {}): Promise<T>
   return (await response.json()) as T;
 }
 
-export type AgentId = "ollama" | "gemini" | "mimo" | "polza";
+export type AgentId = "ollama" | "mimo" | "polza";
 
 export type AgentInfo = {
   id: AgentId;

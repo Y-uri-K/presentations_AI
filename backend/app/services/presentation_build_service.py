@@ -15,6 +15,13 @@ from app.database import SessionLocal
 from app.models import Presentation, User
 from app.schemas.slides import PresentationSlides, SlideImageSpec
 from app.services import template_service
+from app.services.dvfu_generator import (
+    DVFU_TEMPLATE_NAME,
+    build_dvfu_pptx,
+    get_dvfu_template_bytes,
+    refine_dvfu_slides_with_mimo,
+    slides_from_outline_for_dvfu,
+)
 from app.services.image_normalizer import normalize_image_for_pptx
 from app.services.pptx_builder import build_pptx_from_template
 from app.services.slide_image_plan import apply_slide_image_plan, clear_generated_image_requests
@@ -24,6 +31,7 @@ from app.services.template_driven.pipeline import (
     analyze_template_for_build,
     generate_presentation_blueprint,
 )
+from app.services.template_style_extractor import extract_user_template_style
 from app.services.template_style_service import resolve_user_template_style
 from app.services.presentation_gamma.outline import extract_presentation_title
 from app.services.slide_planner import available_refs_from_sources, plan_slides_from_outline
@@ -35,6 +43,7 @@ from app.services.source_topic_enrichment import enrich_outline_from_sources
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+DVFU_REFINEMENT_TIMEOUT_SECONDS = 90
 
 
 def _set_build_stage(db: Session, presentation_id: int, stage: str) -> None:
@@ -242,18 +251,19 @@ async def build_presentation_file(
     presentation = get_user_presentation(db, user_id=user.id, presentation_id=presentation_id)
 
     if presentation.template_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Выберите шаблон перед сборкой презентации",
+        template = None
+        template_bytes = get_dvfu_template_bytes()
+        template_name = DVFU_TEMPLATE_NAME
+        template_file_type = "pptx"
+    else:
+        template = template_service.get_user_template(
+            db,
+            user_id=user.id,
+            template_id=presentation.template_id,
         )
-
-    template = template_service.get_user_template(
-        db,
-        user_id=user.id,
-        template_id=presentation.template_id,
-    )
-    template_bytes = bytes(template.file_data)
-    template_name = template.name
+        template_bytes = bytes(template.file_data)
+        template_name = template.name
+        template_file_type = template.file_type
     sources = [(item.filename, bytes(item.content)) for item in presentation.source_files]
     outline = presentation.outline
     agent_id = presentation.agent_id
@@ -272,29 +282,90 @@ async def build_presentation_file(
             fallback=presentation.title or presentation_prompt or "Презентация",
         )
 
-        _set_build_stage(db, presentation_id, "content_plan")
-        stage = time.perf_counter()
-        enrichment = await enrich_outline_from_sources(
-            agent_id=agent_id,
-            outline=outline,
-            sources=sources,
-            presentation_prompt=presentation_prompt,
-        )
-        outline = enrichment.outline
-        if enrichment.used_agent:
-            logger.info(
-                "Этап «источники + вопросы по теме»: %.1f с, фактов=%s",
-                time.perf_counter() - stage,
-                len(enrichment.visual_facts),
+        if presentation.template_id is not None:
+            _set_build_stage(db, presentation_id, "content_plan")
+            stage = time.perf_counter()
+            enrichment = await enrich_outline_from_sources(
+                agent_id=agent_id,
+                outline=outline,
+                sources=sources,
+                presentation_prompt=presentation_prompt,
             )
-        if enrichment.visual_facts:
-            facts_block = "\n".join(f"- {f}" for f in enrichment.visual_facts[:8])
-            presentation_prompt = (
-                f"{(presentation_prompt or '').strip()}\n\n"
-                f"Ключевые факты из материалов:\n{facts_block}"
-            ).strip()
+            outline = enrichment.outline
+            if enrichment.used_agent:
+                logger.info(
+                    "Этап «источники + вопросы по теме»: %.1f с, фактов=%s",
+                    time.perf_counter() - stage,
+                    len(enrichment.visual_facts),
+                )
+            if enrichment.visual_facts:
+                facts_block = "\n".join(f"- {f}" for f in enrichment.visual_facts[:8])
+                presentation_prompt = (
+                    f"{(presentation_prompt or '').strip()}\n\n"
+                    f"Ключевые факты из материалов:\n{facts_block}"
+                ).strip()
+        elif sources:
+            logger.info("ДВФУ-сборка: пропуск повторного source enrichment, материалы уже учтены в outline")
 
-        if settings.presentation_use_template_driven and template.file_type == "pptx":
+        if presentation.template_id is None:
+            _set_build_stage(db, presentation_id, "content_plan")
+            stage = time.perf_counter()
+            slides = slides_from_outline_for_dvfu(outline)
+            logger.info(
+                "Этап «структура слайдов ДВФУ» (локальный draft): %s слайдов за %.1f с",
+                len(slides.slides),
+                time.perf_counter() - stage,
+            )
+            enrich_presentation_from_outline(slides, outline, max_items_per_slide=6)
+            enforce_presentation_text_control(slides)
+
+            _set_build_stage(db, presentation_id, "content_plan")
+            stage = time.perf_counter()
+            slides = await refine_dvfu_slides_with_mimo(
+                slides=slides,
+                outline=outline,
+                deck_title=deck_title,
+                agent_id="mimo",
+                timeout_seconds=DVFU_REFINEMENT_TIMEOUT_SECONDS,
+            )
+            enforce_presentation_text_control(slides)
+            logger.info(
+                "Этап «проверка JSON ДВФУ»: %s слайдов за %.1f с",
+                len(slides.slides),
+                time.perf_counter() - stage,
+            )
+
+            user_style_preview = extract_user_template_style(template_bytes)
+            apply_slide_image_plan(
+                slides,
+                presentation_prompt=presentation_prompt,
+                content_image_side=user_style_preview.content_image_side,
+                enabled=generate_images,
+            )
+            if not generate_images:
+                clear_generated_image_requests(slides)
+
+            _set_build_stage(db, presentation_id, "images")
+            stage = time.perf_counter()
+            slide_images = await _resolve_slide_images(slides, sources)
+            logger.info("Этап «изображения»: %.1f с", time.perf_counter() - stage)
+
+            _set_build_stage(db, presentation_id, "pptx_fill")
+            stage = time.perf_counter()
+            pptx_bytes, slides = build_dvfu_pptx(
+                template_bytes=template_bytes,
+                slides=slides,
+                slide_images=slide_images,
+                deck_title=deck_title,
+                presenter_name=user.full_name or user.username,
+                subtitle=presentation_prompt,
+            )
+            logger.info(
+                "Этап «PPTX ДВФУ»: %.1f с, размер %s КБ",
+                time.perf_counter() - stage,
+                len(pptx_bytes) // 1024,
+            )
+        elif settings.presentation_use_template_driven and template_file_type == "pptx":
             _set_build_stage(db, presentation_id, "template_analysis")
             stage = time.perf_counter()
             analyzed = await analyze_template_for_build(template_bytes)
@@ -321,7 +392,7 @@ async def build_presentation_file(
             if user_style is None:
                 user_style = await resolve_user_template_style(
                     template_bytes,
-                    template.file_type,
+                    template_file_type,
                     catalog=analyzed.catalog,
                 )
 
@@ -340,7 +411,7 @@ async def build_presentation_file(
             stage = time.perf_counter()
             pptx_bytes = build_pptx_from_template(
                 template_bytes=template_bytes,
-                template_file_type=template.file_type,
+                template_file_type=template_file_type,
                 slides=slides,
                 slide_images=slide_images,
                 user_style=user_style,
@@ -371,7 +442,7 @@ async def build_presentation_file(
             enforce_presentation_text_control(slides)
             user_style_preview = await resolve_user_template_style(
                 template_bytes,
-                template.file_type,
+                template_file_type,
             )
             apply_slide_image_plan(
                 slides,
@@ -393,7 +464,7 @@ async def build_presentation_file(
             stage = time.perf_counter()
             pptx_bytes = build_pptx_from_template(
                 template_bytes=template_bytes,
-                template_file_type=template.file_type,
+                template_file_type=template_file_type,
                 slides=slides,
                 slide_images=slide_images,
                 user_style=user_style,

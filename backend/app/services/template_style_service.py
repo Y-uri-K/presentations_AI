@@ -8,7 +8,7 @@ from app.config import get_settings
 if TYPE_CHECKING:
     from app.schemas.template_blueprint import TemplateCatalog
 from app.services.pdf_template_style_extractor import extract_user_template_style_from_pdf
-from app.services.template_ai_style_analyzer import analyze_template_style_with_polza
+from app.services.template_ai_style_analyzer import analyze_template_style_with_ai
 from app.services.template_slide_inspector import (
     extract_largest_background_image_pptx,
     inspect_template_slides,
@@ -80,7 +80,7 @@ async def resolve_user_template_style(
             logger.info("Фоновое изображение из шаблона: %s байт", len(bg_image))
 
     if settings.presentation_template_ai_analysis:
-        base = await analyze_template_style_with_polza(
+        base = await analyze_template_style_with_ai(
             samples, base, catalog=catalog, geometry=geometry
         )
         base = apply_palette_to_style(base, palette_hex)

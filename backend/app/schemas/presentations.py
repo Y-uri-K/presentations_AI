@@ -5,7 +5,7 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-AgentId = Literal["ollama", "gemini", "mimo", "polza"]
+AgentId = Literal["ollama", "mimo", "polza"]
 PresentationStatus = Literal["draft", "building", "ready", "failed"]
 
 

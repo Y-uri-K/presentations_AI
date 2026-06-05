@@ -45,10 +45,9 @@ function buildStageLabel(stage: string | null): string {
 }
 
 const AGENT_LABELS: Record<AgentId, string> = {
+  mimo: "MiMo (основной)",
   ollama: "Ollama",
-  gemini: "Gemini 3.5 Flash (Polza)",
-  polza: "Gemini 3.5 Flash (Polza)",
-  mimo: "MiMo",
+  polza: "Polza (Gemini)",
 };
 
 const SOURCE_ACCEPT =
@@ -56,6 +55,7 @@ const SOURCE_ACCEPT =
 
 const MAX_SOURCE_FILES = 5;
 const ACTIVE_PRESENTATION_ID_KEY = "aideck_active_presentation_id";
+const WORKSPACE_RESET_KEY = "aideck_workspace_reset";
 
 function isAllowedSourceFile(file: File): boolean {
   const name = file.name.toLowerCase();
@@ -86,12 +86,24 @@ function clearActivePresentationId() {
   localStorage.removeItem(ACTIVE_PRESENTATION_ID_KEY);
 }
 
+function markWorkspaceReset() {
+  localStorage.setItem(WORKSPACE_RESET_KEY, "1");
+}
+
+function clearWorkspaceReset() {
+  localStorage.removeItem(WORKSPACE_RESET_KEY);
+}
+
+function wasWorkspaceReset() {
+  return localStorage.getItem(WORKSPACE_RESET_KEY) === "1";
+}
+
 export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresentationPanelProps) {
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const { selectedTemplate, selectedTemplateId } = useTemplateSelection();
 
   const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [agentId, setAgentId] = useState<AgentId>("gemini");
+  const [agentId, setAgentId] = useState<AgentId>("mimo");
   const [prompt, setPrompt] = useState("");
   const [sourceFiles, setSourceFiles] = useState<File[]>([]);
   const [outline, setOutline] = useState<string | null>(null);
@@ -128,7 +140,7 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
   const canBuild =
     presentationId != null &&
     presentationId > 0 &&
-    (effectiveTemplateType === "pptx" || effectiveTemplateType === "pdf") &&
+    (effectiveTemplateType === null || effectiveTemplateType === "pptx" || effectiveTemplateType === "pdf") &&
     buildStatus !== "ready" &&
     !isOutlineDirty &&
     !planOverLimit;
@@ -140,9 +152,7 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
         ? `В плане ${planSlideCount} слайдов — максимум ${MAX_PRESENTATION_SLIDES}`
         : isOutlineDirty
         ? "Сохраните план перед сборкой презентации"
-        : effectiveTemplateType === null
-          ? "Выберите шаблон (PPTX или PDF) в блоке «Шаблоны» и сгенерируйте план заново"
-          : effectiveTemplateType !== "pptx" && effectiveTemplateType !== "pdf"
+        : effectiveTemplateType !== null && effectiveTemplateType !== "pptx" && effectiveTemplateType !== "pdf"
             ? "Для сборки нужен шаблон PPTX или PDF"
             : buildStatus === "ready"
               ? null
@@ -181,9 +191,12 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
 
     async function resumeActivePresentation() {
       let activeId = readActivePresentationId();
+      if (!activeId && wasWorkspaceReset()) {
+        return;
+      }
       if (!activeId) {
         const latest = (await fetchPresentations()).find((item) =>
-          ["draft", "building", "ready", "failed"].includes(item.status),
+          item.status === "ready" && item.has_download,
         );
         activeId = latest?.id ?? null;
         if (activeId) {
@@ -333,6 +346,7 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
     }
 
     setIsCreating(true);
+    clearWorkspaceReset();
     setError(null);
     setNotice(null);
     setOutline(null);
@@ -376,7 +390,7 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
       }
     }
 
-    if (effectiveTemplateType !== "pptx" && effectiveTemplateType !== "pdf") {
+    if (effectiveTemplateType !== null && effectiveTemplateType !== "pptx" && effectiveTemplateType !== "pdf") {
       setError("Для сборки выберите шаблон в формате PPTX или PDF");
       return;
     }
@@ -439,6 +453,7 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
     if (!presentationId || buildStatus !== "ready") {
       return;
     }
+    clearWorkspaceReset();
     saveActivePresentationId(presentationId);
     setNotice("Презентация сохранена и доступна в списке «Мои презентации»");
     onPresentationsChanged?.();
@@ -451,6 +466,7 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
     if (!confirmed) {
       return;
     }
+    markWorkspaceReset();
     clearCurrentPresentationState();
     setNotice("Рабочая область очищена. Сохранённые презентации остались в списке.");
   }
@@ -551,7 +567,7 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
             </>
           ) : (
             <span className="text-[var(--subtle)]">
-              Шаблон не выбран — выберите PPTX или PDF в блоке «Шаблоны»
+              Шаблон не выбран — будет использован ДВФУ-шаблон по умолчанию
             </span>
           )}
         </div>

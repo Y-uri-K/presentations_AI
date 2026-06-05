@@ -64,9 +64,6 @@ export const registerRequestSchema = z
     email: emailField,
     password: passwordField,
     password_confirm: z.string().min(1, "Подтвердите пароль"),
-    agreement: z.boolean().refine((value) => value, {
-      message: "Необходимо принять условия использования",
-    }),
   })
   .refine((data) => data.password === data.password_confirm, {
     message: "Пароли не совпадают",

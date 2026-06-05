@@ -39,26 +39,34 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface)]/85 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link
-          href={ROUTES.dashboard}
-          className="inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 text-sm font-medium text-[var(--foreground)] shadow-sm transition-colors hover:border-[var(--primary)] hover:bg-[var(--surface-muted)]"
-        >
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            className="h-4 w-4 text-[var(--muted)]"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <nav className="flex items-center gap-2">
+          <Link
+            href={ROUTES.dashboard}
+            className="inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 text-sm font-medium text-[var(--foreground)] shadow-sm transition-colors hover:border-[var(--primary)] hover:bg-[var(--surface-muted)]"
           >
-            <path d="m3 11 9-8 9 8" />
-            <path d="M5 10v10h14V10" />
-            <path d="M9 20v-6h6v6" />
-          </svg>
-          Главная
-        </Link>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-4 w-4 text-[var(--muted)]"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m3 11 9-8 9 8" />
+              <path d="M5 10v10h14V10" />
+              <path d="M9 20v-6h6v6" />
+            </svg>
+            Главная
+          </Link>
+          <Link
+            href={ROUTES.templates}
+            className="inline-flex h-11 items-center rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 text-sm font-medium text-[var(--foreground)] shadow-sm transition-colors hover:border-[var(--primary)] hover:bg-[var(--surface-muted)]"
+          >
+            Шаблоны
+          </Link>
+        </nav>
         <Link
           href={ROUTES.profile}
           className="inline-flex h-11 max-w-[240px] items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] py-1 pl-4 pr-1 text-sm font-medium text-[var(--foreground)] shadow-sm transition-colors hover:border-[var(--primary)] hover:bg-[var(--surface-muted)]"

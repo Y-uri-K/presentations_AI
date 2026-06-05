@@ -94,6 +94,7 @@ export type UserMeResponse = {
   id: number;
   username: string;
   email: string;
+  full_name: string | null;
   profile_image: string | null;
   role: "user" | "admin" | string;
 };
@@ -186,7 +187,7 @@ export async function fetchMe(accessToken: string): Promise<UserMeResponse> {
 
 export async function updateMe(
   accessToken: string,
-  payload: { username: string },
+  payload: { username: string; full_name?: string | null },
 ): Promise<UserMeResponse> {
   const response = await fetch(`${API_URL}/api/auth/me`, {
     method: "PATCH",
@@ -194,7 +195,10 @@ export async function updateMe(
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ username: payload.username.trim() }),
+    body: JSON.stringify({
+      username: payload.username.trim(),
+      full_name: payload.full_name?.trim() || null,
+    }),
   });
 
   if (!response.ok) {

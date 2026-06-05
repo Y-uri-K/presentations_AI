@@ -24,6 +24,7 @@ from app.schemas.presentations import (
 )
 from app.services import presentation_build_service as build_service
 from app.services import presentation_service as presentations
+from app.services.dvfu_generator import DVFU_TEMPLATE_NAME
 
 router = APIRouter(prefix="/api/presentations", tags=["presentations"])
 
@@ -39,7 +40,7 @@ def _slide_count(presentation) -> Optional[int]:
 
 def _template_meta(db: Session, presentation) -> tuple[Optional[str], Optional[str]]:
     if presentation.template_id is None:
-        return None, None
+        return DVFU_TEMPLATE_NAME, "pptx"
     from app.models import UserTemplate
 
     template = db.get(UserTemplate, presentation.template_id)
@@ -128,11 +129,6 @@ async def build_presentation(
         user_id=current_user.id,
         presentation_id=presentation_id,
     )
-    if presentation.template_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Выберите шаблон перед сборкой презентации",
-        )
     if presentation.status == "building":
         return PresentationBuildResponse(
             id=presentation.id,

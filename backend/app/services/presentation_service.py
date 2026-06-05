@@ -9,11 +9,12 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.registry import chat_with_agent_resilient
+from app.ai.registry import chat_with_agent_resilient, resolve_agent_id
 from app.ai.types import ChatMessage
 from app.config import get_settings
 from app.models import Presentation, PresentationSourceFile, User
 from app.services import template_service
+from app.services.dvfu_generator import DVFU_AGENT_BRIEF, DVFU_TEMPLATE_NAME
 from app.services.outline_limits import count_outline_slides, ensure_outline_within_limit
 from app.services.presentation_gamma.outline import (
     extract_presentation_title,
@@ -39,7 +40,11 @@ def list_user_presentations(db: Session, user_id: int) -> list[Presentation]:
     return list(
         db.scalars(
             select(Presentation)
-            .where(Presentation.user_id == user_id)
+            .where(
+                Presentation.user_id == user_id,
+                Presentation.status == "ready",
+                Presentation.pptx_data.is_not(None),
+            )
             .order_by(Presentation.updated_at.desc(), Presentation.created_at.desc())
         )
     )
@@ -124,6 +129,16 @@ async def create_presentation_outline(
             f"\n\nВыбранный шаблон оформления: «{template.name}» ({template.file_type.upper()}). "
             "Учитывай его стиль при структуре и тоне презентации."
         )
+    else:
+        template_name = DVFU_TEMPLATE_NAME
+        template_file_type = "pptx"
+        template_block = (
+            "\n\nШаблон оформления по умолчанию: ДВФУ. "
+            "Сформируй структуру так, чтобы она хорошо легла в академический шаблон: "
+            "таймлайн, списки, этапы, таблица, схемы, текстовые блоки и итог. "
+            "Не добавляй отдельные темы для титульного и финального слайда: они обязательны в шаблоне."
+            f"\n\n{DVFU_AGENT_BRIEF}"
+        )
 
     user_message_parts = []
     if cleaned_prompt:
@@ -134,7 +149,7 @@ async def create_presentation_outline(
         user_message_parts.append(template_block.strip())
 
     user_message = "\n\n".join(user_message_parts)
-    selected_agent = agent_id or settings.presentation_default_agent
+    selected_agent = resolve_agent_id(agent_id or settings.presentation_default_agent)
 
     outline_prompt = format_outline_prompt(
         text_content=settings.presentation_text_content,
@@ -142,21 +157,17 @@ async def create_presentation_outline(
         audience=settings.presentation_audience,
         scenario=settings.presentation_scenario,
     )
+    outline_messages = [
+        ChatMessage(role="user", content=f"{outline_prompt}\n\n{user_message}"),
+    ]
+    started = time.perf_counter()
     logger.info(
-        "Создание плана (gamma-style): агент=%s, макс. %s слайдов...",
+        "Создание плана: агент=%s, материалов=%s, макс. %s слайдов...",
         selected_agent,
+        len(source_blocks),
         settings.presentation_max_slides,
     )
-    started = time.perf_counter()
-    raw_outline = await chat_with_agent_resilient(
-        selected_agent,
-        [
-            ChatMessage(
-                role="user",
-                content=f"{outline_prompt}\n\n{user_message}",
-            ),
-        ],
-    )
+    raw_outline = await chat_with_agent_resilient(selected_agent, outline_messages)
     title, outline = normalize_stored_outline(
         raw_outline,
         fallback_title=cleaned_prompt or "Презентация",

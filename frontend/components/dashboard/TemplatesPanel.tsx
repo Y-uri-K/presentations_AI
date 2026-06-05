@@ -20,6 +20,7 @@ const ACCEPT = ".pptx,.pdf,application/pdf,application/vnd.openxmlformats-office
 export function TemplatesPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { selectedTemplateId, selectTemplate } = useTemplateSelection();
+  const isDefaultSelected = selectedTemplateId === null;
   const [templates, setTemplates] = useState<TemplateListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -174,12 +175,46 @@ export function TemplatesPanel() {
       <div className="mt-4 flex-1">
         {isLoading ? (
           <p className="text-sm text-[var(--subtle)]">Загрузка списка…</p>
-        ) : templates.length === 0 ? (
-          <p className="text-sm text-[var(--subtle)]">
-            Пока нет шаблонов. Нажмите «Загрузить», чтобы добавить презентацию.
-          </p>
         ) : (
           <ul className="max-h-48 space-y-2 overflow-y-auto pr-1">
+            <li
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
+                isDefaultSelected
+                  ? "border-[var(--primary)] bg-[var(--accent-light)] ring-1 ring-[color:var(--focus-ring)]"
+                  : "border-[var(--border)] bg-[var(--surface-muted)]"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => selectTemplate(null)}
+                title="Использовать шаблон ДВФУ по умолчанию"
+                className={`shrink-0 h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                  isDefaultSelected
+                    ? "border-[var(--primary)] bg-[var(--primary)]"
+                    : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--primary)]"
+                }`}
+              >
+                {isDefaultSelected ? (
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--on-primary)]" />
+                ) : null}
+              </button>
+              <span className="shrink-0 rounded-md border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[var(--muted)]">
+                ДВФУ
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-[var(--foreground)]">
+                  Шаблон по умолчанию
+                </p>
+                <p className="truncate text-xs text-[var(--subtle)]">
+                  Используется без загрузки файла
+                </p>
+              </div>
+            </li>
+            {templates.length === 0 ? (
+              <li className="px-1 text-sm text-[var(--subtle)]">
+                Пользовательских шаблонов пока нет. Можно использовать ДВФУ или загрузить свой.
+              </li>
+            ) : null}
             {templates.map((template) => {
               const isSelected = selectedTemplateId === template.id;
               return (

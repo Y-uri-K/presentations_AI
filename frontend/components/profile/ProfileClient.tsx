@@ -56,9 +56,10 @@ export function ProfileClient() {
   const router = useRouter();
   const [user, setUser] = useState<UserMeResponse | null>(null);
   const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
   const [theme, setTheme] = useState<AppTheme>("light");
   const [loading, setLoading] = useState(true);
-  const [savingUsername, setSavingUsername] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [deletingImage, setDeletingImage] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -68,6 +69,11 @@ export function ProfileClient() {
     return user ? username.trim() !== user.username : false;
   }, [user, username]);
 
+  const fullNameChanged = useMemo(() => {
+    return user ? fullName.trim() !== (user.full_name ?? "") : false;
+  }, [fullName, user]);
+
+  const profileChanged = usernameChanged || fullNameChanged;
   const usernameError = usernameChanged ? validateUsername(username) : null;
 
   useEffect(() => {
@@ -89,6 +95,7 @@ export function ProfileClient() {
         }
         setUser(profile);
         setUsername(profile.username);
+        setFullName(profile.full_name ?? "");
         setTheme(getSavedAppTheme());
       } catch (error) {
         if (!cancelled) {
@@ -117,27 +124,32 @@ export function ProfileClient() {
     });
   }
 
-  async function handleUsernameSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const accessToken = getAccessToken();
     const nextUsername = username.trim();
+    const nextFullName = fullName.trim();
 
-    if (!accessToken || !user || !usernameChanged || usernameError) {
+    if (!accessToken || !user || !profileChanged || usernameError) {
       return;
     }
 
-    setSavingUsername(true);
+    setSavingProfile(true);
     setStatus(null);
 
     try {
-      const updated = await updateMe(accessToken, { username: nextUsername });
+      const updated = await updateMe(accessToken, {
+        username: nextUsername,
+        full_name: nextFullName || null,
+      });
       setUser(updated);
       setUsername(updated.username);
-      setStatus({ kind: "success", text: "Username обновлён и сохранён в базе" });
+      setFullName(updated.full_name ?? "");
+      setStatus({ kind: "success", text: "Профиль обновлён и сохранён в базе" });
     } catch (error) {
-      setStatus({ kind: "error", text: getErrorMessage(error, "Не удалось сохранить username") });
+      setStatus({ kind: "error", text: getErrorMessage(error, "Не удалось сохранить профиль") });
     } finally {
-      setSavingUsername(false);
+      setSavingProfile(false);
     }
   }
 
@@ -253,6 +265,9 @@ export function ProfileClient() {
             <h1 className="mt-1 truncate text-3xl font-bold text-[var(--foreground)]">
               {user.username}
             </h1>
+            {user.full_name ? (
+              <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">{user.full_name}</p>
+            ) : null}
             <p className="mt-2 text-sm text-[var(--muted)]">{user.email}</p>
 
             <div className="mt-5 flex flex-wrap gap-3">
@@ -287,41 +302,61 @@ export function ProfileClient() {
           </div>
         </div>
 
-        <form className="mt-8 border-t border-[var(--border)] pt-6" onSubmit={handleUsernameSubmit} noValidate>
-          <label className="block text-sm font-semibold text-[var(--foreground)]" htmlFor="username">
-            Username
-          </label>
-          <div className="mt-2 flex flex-col gap-3 sm:flex-row">
-            <input
-              id="username"
-              value={username}
-              maxLength={64}
-              onChange={(event) => setUsername(event.target.value)}
-              aria-invalid={usernameError ? true : undefined}
-              className={`min-h-11 flex-1 rounded-xl border bg-[var(--background)] px-4 text-sm text-[var(--foreground)] outline-none transition-colors ${
-                usernameError
-                  ? "border-[var(--danger-border)] focus:border-[var(--danger-text)] focus:ring-4 focus:ring-[color:var(--danger-bg)]"
-                  : "border-[var(--border)] focus:border-[var(--primary)]"
-              }`}
-              placeholder="username"
-            />
+        <form className="mt-8 border-t border-[var(--border)] pt-6" onSubmit={handleProfileSubmit} noValidate>
+          <div className="grid gap-5">
+            <div>
+              <label className="block text-sm font-semibold text-[var(--foreground)]" htmlFor="fullName">
+                ФИО
+              </label>
+              <input
+                id="fullName"
+                value={fullName}
+                maxLength={255}
+                onChange={(event) => setFullName(event.target.value)}
+                className="mt-2 min-h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 text-sm text-[var(--foreground)] outline-none transition-colors focus:border-[var(--primary)]"
+                placeholder="Иванов Иван Иванович"
+              />
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                Будет использоваться в будущей генерации презентаций.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-[var(--foreground)]" htmlFor="username">
+                Username
+              </label>
+              <input
+                id="username"
+                value={username}
+                maxLength={64}
+                onChange={(event) => setUsername(event.target.value)}
+                aria-invalid={usernameError ? true : undefined}
+                className={`mt-2 min-h-11 w-full rounded-xl border bg-[var(--background)] px-4 text-sm text-[var(--foreground)] outline-none transition-colors ${
+                  usernameError
+                    ? "border-[var(--danger-border)] focus:border-[var(--danger-text)] focus:ring-4 focus:ring-[color:var(--danger-bg)]"
+                    : "border-[var(--border)] focus:border-[var(--primary)]"
+                }`}
+                placeholder="username"
+              />
+              {usernameError ? (
+                <ErrorMessage className="mt-2 text-xs" variant="text">
+                  {usernameError}
+                </ErrorMessage>
+              ) : (
+                <p className="mt-2 text-xs text-[var(--muted)]">
+                  Допустимы латинские буквы, цифры и подчёркивание.
+                </p>
+              )}
+            </div>
+
             <button
               type="submit"
-              disabled={!usernameChanged || Boolean(usernameError) || savingUsername}
-              className="rounded-xl bg-[var(--primary)] px-5 py-2.5 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-dark)] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!profileChanged || Boolean(usernameError) || savingProfile}
+              className="w-full rounded-xl bg-[var(--primary)] px-5 py-2.5 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-dark)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-fit"
             >
-              {savingUsername ? "Сохранение…" : "Сохранить"}
+              {savingProfile ? "Сохранение…" : "Сохранить профиль"}
             </button>
           </div>
-          {usernameError ? (
-            <ErrorMessage className="mt-2 text-xs" variant="text">
-              {usernameError}
-            </ErrorMessage>
-          ) : (
-            <p className="mt-2 text-xs text-[var(--muted)]">
-              Допустимы латинские буквы, цифры и подчёркивание.
-            </p>
-          )}
         </form>
 
         {status?.kind === "error" ? (

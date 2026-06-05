@@ -2,8 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { useForm, type FieldErrors } from "react-hook-form";
+import { useMemo, useState } from "react";
+import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 
 import { AuthField } from "@/components/auth/AuthField";
 import {
@@ -25,6 +25,14 @@ function isPasswordInvalid(value: string) {
   return value.length < 8 || !/[A-Za-zА-Яа-я]/.test(value) || !/\d/.test(value);
 }
 
+function isUsernameValid(value: string) {
+  return /^[a-zA-Z0-9_]{3,64}$/.test(value.trim());
+}
+
+function isEmailValid(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
 export function RegisterForm() {
   const router = useRouter();
   const [codeSent, setCodeSent] = useState(false);
@@ -39,6 +47,7 @@ export function RegisterForm() {
     register,
     handleSubmit,
     getValues,
+    control,
     setError,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({
@@ -51,7 +60,6 @@ export function RegisterForm() {
       password: "",
       password_confirm: "",
       verification_code: "",
-      agreement: false,
     },
   });
 
@@ -75,7 +83,6 @@ export function RegisterForm() {
       email: values.email,
       password: values.password,
       password_confirm: values.password_confirm,
-      agreement: values.agreement,
     });
 
     if (!parsed.success) {
@@ -140,6 +147,32 @@ export function RegisterForm() {
 
   const passwordRegistration = register("password");
   const passwordConfirmRegistration = register("password_confirm");
+  const watchedUsername = useWatch({ control, name: "username" });
+  const watchedEmail = useWatch({ control, name: "email" });
+  const watchedPassword = useWatch({ control, name: "password" });
+  const watchedPasswordConfirm = useWatch({ control, name: "password_confirm" });
+
+  const canRequestCode = useMemo(() => {
+    return (
+      isUsernameValid(watchedUsername) &&
+      isEmailValid(watchedEmail) &&
+      !isPasswordInvalid(watchedPassword) &&
+      watchedPasswordConfirm === watchedPassword &&
+      !errors.username &&
+      !errors.email &&
+      !errors.password &&
+      !errors.password_confirm
+    );
+  }, [
+    errors.email,
+    errors.password,
+    errors.password_confirm,
+    errors.username,
+    watchedEmail,
+    watchedPassword,
+    watchedPasswordConfirm,
+    watchedUsername,
+  ]);
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit(onSubmit, onInvalid)} noValidate>
@@ -213,20 +246,6 @@ export function RegisterForm() {
         />
       </div>
 
-      <label className="flex items-start gap-3 cursor-pointer group">
-        <input
-          type="checkbox"
-          className="mt-1 h-4 w-4 rounded border-[var(--border)] text-[var(--primary)] focus:ring-[color:var(--focus-ring)]"
-          {...register("agreement")}
-        />
-        <span className="text-sm leading-snug text-[var(--muted)] transition-colors group-hover:text-[var(--foreground)]">
-          Я согласен с{" "}
-          <span className="text-[var(--primary)] font-medium">условиями использования</span> и{" "}
-          <span className="text-[var(--primary)] font-medium">политикой конфиденциальности</span>
-        </span>
-      </label>
-      {errors.agreement ? <p className="text-xs text-red-600 -mt-2">{errors.agreement.message}</p> : null}
-
       {statusMessage ? (
         <p className="rounded-lg border border-[var(--success-border)] bg-[var(--success-bg)] px-3 py-2 text-sm text-[var(--success-text)]">{statusMessage}</p>
       ) : null}
@@ -238,7 +257,11 @@ export function RegisterForm() {
         type="button"
         onClick={handleSendCode}
         disabled={isSendingCode || isSubmitting || isOnCooldown}
-        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--primary)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+        className={`w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
+          canRequestCode && !codeSent
+            ? "border-[var(--primary)] bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] text-[var(--on-primary)] shadow-lg shadow-[color:var(--primary)]/20 hover:from-[var(--primary-dark)] hover:to-[var(--primary)]"
+            : "border-[var(--border)] bg-[var(--surface)] text-[var(--primary)] hover:bg-[var(--surface-muted)]"
+        }`}
       >
         {isOnCooldown
           ? `Повторная отправка через ${cooldownSeconds} сек.`

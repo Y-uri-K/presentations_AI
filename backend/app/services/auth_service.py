@@ -8,6 +8,8 @@ from app.core.security import create_token_pair, verify_password
 from app.models import User
 from app.services.registration_service import normalize_username, validate_username_format
 
+_profile_columns_checked = False
+
 
 def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
     return db.get(User, user_id)
@@ -34,7 +36,21 @@ def issue_tokens_for_user(user: User) -> tuple[str, str]:
     return create_token_pair(user_id=user.id, username=user.username, email=user.email)
 
 
-def update_user_profile(db: Session, *, user: User, username: str) -> User:
+def _normalize_full_name(full_name: Optional[str]) -> Optional[str]:
+    if full_name is None:
+        return None
+    normalized = " ".join(full_name.strip().split())
+    return normalized or None
+
+
+def update_user_profile(
+    db: Session,
+    *,
+    user: User,
+    username: str,
+    full_name: Optional[str] = None,
+) -> User:
+    ensure_user_profile_columns(db)
     normalized = normalize_username(username)
     validate_username_format(normalized)
 
@@ -50,22 +66,43 @@ def update_user_profile(db: Session, *, user: User, username: str) -> User:
         )
 
     user.username = normalized
+    user.full_name = _normalize_full_name(full_name)
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
 
 
-def ensure_profile_image_text_column(db: Session) -> None:
-    """Existing MySQL volumes may still have VARCHAR(512) from the old schema."""
-    if db.bind is None or db.bind.dialect.name != "mysql":
+def ensure_user_profile_columns(db: Session) -> None:
+    global _profile_columns_checked
+
+    if _profile_columns_checked:
         return
+    if db.bind is None or db.bind.dialect.name != "mysql":
+        _profile_columns_checked = True
+        return
+
+    has_full_name = db.scalar(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'users'
+              AND COLUMN_NAME = 'full_name'
+            """
+        )
+    )
+    if not has_full_name:
+        db.execute(text("ALTER TABLE users ADD COLUMN full_name VARCHAR(255) NULL"))
+
     db.execute(text("ALTER TABLE users MODIFY profile_image LONGTEXT NULL"))
     db.commit()
+    _profile_columns_checked = True
 
 
 def update_user_profile_image(db: Session, *, user: User, profile_image: str) -> User:
-    ensure_profile_image_text_column(db)
+    ensure_user_profile_columns(db)
     user.profile_image = profile_image
     db.add(user)
     db.commit()

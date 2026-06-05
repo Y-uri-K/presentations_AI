@@ -18,8 +18,8 @@ class PolzaProvider:
         has_key = bool(settings.polza_api_key.strip())
         return AgentInfo(
             id=self.id,
-            name="Gemini 3.5 Flash",
-            description="Google Gemini 3.5 Flash через Polza.ai",
+            name="Polza (Gemini 3.5 Flash)",
+            description="Чат-модель Polza.ai — используйте осознанно (платный API)",
             model=settings.polza_chat_model,
             provider="polza",
             available=has_key,

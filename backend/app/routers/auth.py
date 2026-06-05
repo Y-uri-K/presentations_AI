@@ -32,6 +32,7 @@ def _user_response(user: User) -> UserMeResponse:
         id=user.id,
         username=user.username,
         email=user.email,
+        full_name=user.full_name,
         profile_image=user.profile_image,
         role="user",
     )
@@ -116,7 +117,12 @@ def update_me(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    user = auth_service.update_user_profile(db, user=current_user, username=payload.username)
+    user = auth_service.update_user_profile(
+        db,
+        user=current_user,
+        username=payload.username,
+        full_name=payload.full_name,
+    )
     return _user_response(user)
 
 
