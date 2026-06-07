@@ -11,7 +11,7 @@ type AuthShellProps = {
 export function AuthShell({ title, subtitle, children, footer }: AuthShellProps) {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
-      <aside className="relative flex flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--hero-from)] via-[var(--primary)] to-[var(--hero-to)] px-8 py-12 text-[var(--hero-text)] lg:w-[44%] lg:px-14 lg:py-16 xl:w-[42%]">
+      <aside className="relative flex flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--hero-from)] via-[var(--primary)] to-[var(--hero-to)] px-6 py-10 text-[var(--hero-text)] sm:px-8 sm:py-12 lg:w-[44%] lg:px-14 lg:py-16 xl:w-[42%]">
         <div
           className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[var(--hero-text)]/10 blur-3xl"
           aria-hidden
@@ -44,9 +44,9 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
         </ul>
       </aside>
 
-      <main className="flex-1 flex items-center justify-center px-6 py-12 lg:px-12 bg-[var(--background)]">
+      <main className="flex flex-1 items-center justify-center bg-[var(--background)] px-4 py-10 sm:px-6 sm:py-12 lg:px-12">
         <div className="w-full max-w-md">
-          <div className="rounded-2xl bg-[var(--surface)] p-8 shadow-xl shadow-[color:var(--primary)]/10 ring-1 ring-[var(--border)] sm:p-10">
+          <div className="rounded-2xl bg-[var(--surface)] p-6 shadow-xl shadow-[color:var(--primary)]/10 ring-1 ring-[var(--border)] sm:p-8 md:p-10">
             {children}
           </div>
           <p className="mt-6 text-center text-sm text-[var(--muted)]">{footer}</p>

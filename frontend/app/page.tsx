@@ -3,7 +3,7 @@ import { Logo } from "@/components/Logo";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[var(--accent-light)] to-[var(--background)] px-6">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[var(--accent-light)] to-[var(--background)] px-4 py-8 sm:px-6">
       <div className="text-center max-w-lg">
         <Link href="/" className="inline-block mx-auto mb-8">
           <Logo className="h-32 sm:h-40 w-auto max-w-[560px]" />

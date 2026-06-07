@@ -241,7 +241,7 @@ export function ProfileClient() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm sm:p-8">
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm sm:p-6 md:p-8">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
           <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface-muted)]">
             {user.profile_image ? (
@@ -262,7 +262,7 @@ export function ProfileClient() {
 
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-[var(--muted)]">Профиль</p>
-            <h1 className="mt-1 truncate text-3xl font-bold text-[var(--foreground)]">
+            <h1 className="mt-1 truncate text-2xl font-bold text-[var(--foreground)] sm:text-3xl">
               {user.username}
             </h1>
             {user.full_name ? (

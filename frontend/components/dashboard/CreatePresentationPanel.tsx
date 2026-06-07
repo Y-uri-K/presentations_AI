@@ -475,14 +475,14 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
 
   return (
     <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm">
-      <div className="border-b border-[var(--border)] px-6 py-4">
+      <div className="border-b border-[var(--border)] px-4 sm:px-6 py-4">
         <h2 className="text-lg font-semibold text-[var(--foreground)]">Новая презентация</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
           План и итоговая презентация — не более 10 слайдов. Сгенерируйте план, отредактируйте и соберите PPTX.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+      <form onSubmit={handleSubmit} className="px-4 sm:px-6 py-5 space-y-4">
         <div>
           <label htmlFor="presentation-prompt" className="mb-1.5 block text-sm font-medium text-[var(--foreground)]">
             Описание презентации
@@ -497,7 +497,7 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={() => sourceInputRef.current?.click()}
@@ -515,8 +515,8 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
             onChange={handleSourceFilesChange}
           />
 
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-[var(--muted)]">ИИ:</span>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <span className="text-sm text-[var(--muted)]">ИИ:</span>
             <select
               value={agentId}
               onChange={(event) => setAgentId(event.target.value as AgentId)}
@@ -589,7 +589,7 @@ export function CreatePresentationPanel({ onPresentationsChanged }: CreatePresen
       </form>
 
       {outline ? (
-        <div className="space-y-4 border-t border-[var(--border)] bg-[var(--surface-muted)] px-6 py-5">
+        <div className="space-y-4 border-t border-[var(--border)] bg-[var(--surface-muted)] px-4 sm:px-6 py-5">
           <PresentationPlanEditor
             outline={outline}
             onOutlineChange={setOutline}

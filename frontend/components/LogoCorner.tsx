@@ -13,7 +13,11 @@ export function LogoCorner({
   return (
     <Link
       href="/"
-      className="fixed bottom-6 right-6 z-20 transition-opacity hover:opacity-90"
+      className="fixed bottom-4 right-4 z-20 hidden transition-opacity hover:opacity-90 sm:bottom-6 sm:right-6 sm:block"
+      style={{
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        paddingRight: "env(safe-area-inset-right, 0px)",
+      }}
       aria-label="На главную"
     >
       <Logo onDark={onDark} className={className} />

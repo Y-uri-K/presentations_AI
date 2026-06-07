@@ -145,8 +145,8 @@ export function TemplatesPanel() {
   }
 
   return (
-    <div className="flex min-h-[280px] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6">
-      <div className="flex items-start justify-between gap-3">
+    <div className="flex min-h-[280px] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="font-semibold text-[var(--foreground)]">Шаблоны</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">PPTX/PDF — выберите активный шаблон</p>
@@ -155,7 +155,7 @@ export function TemplatesPanel() {
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className="shrink-0 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-dark)] disabled:opacity-60"
+          className="w-full shrink-0 rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-dark)] disabled:opacity-60 sm:w-auto sm:py-1.5"
         >
           {isUploading ? "Загрузка…" : "Загрузить"}
         </button>
@@ -178,12 +178,13 @@ export function TemplatesPanel() {
         ) : (
           <ul className="max-h-48 space-y-2 overflow-y-auto pr-1">
             <li
-              className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
+              className={`flex flex-col gap-2 rounded-lg border px-3 py-2 sm:flex-row sm:items-center ${
                 isDefaultSelected
                   ? "border-[var(--primary)] bg-[var(--accent-light)] ring-1 ring-[color:var(--focus-ring)]"
                   : "border-[var(--border)] bg-[var(--surface-muted)]"
               }`}
             >
+              <div className="flex min-w-0 items-center gap-2">
               <button
                 type="button"
                 onClick={() => selectTemplate(null)}
@@ -209,6 +210,7 @@ export function TemplatesPanel() {
                   Используется без загрузки файла
                 </p>
               </div>
+              </div>
             </li>
             {templates.length === 0 ? (
               <li className="px-1 text-sm text-[var(--subtle)]">
@@ -220,12 +222,13 @@ export function TemplatesPanel() {
               return (
               <li
                 key={template.id}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
+                className={`flex flex-col gap-2 rounded-lg border px-3 py-2 sm:flex-row sm:items-center ${
                   isSelected
                     ? "border-[var(--primary)] bg-[var(--accent-light)] ring-1 ring-[color:var(--focus-ring)]"
                     : "border-[var(--border)] bg-[var(--surface-muted)]"
                 }`}
               >
+                <div className="flex min-w-0 items-center gap-2">
                 <button
                   type="button"
                   onClick={() => selectTemplate(isSelected ? null : template)}
@@ -287,19 +290,20 @@ export function TemplatesPanel() {
                     {formatFileSize(template.size_bytes)}
                   </p>
                 </div>
+                </div>
                 {editingId !== template.id ? (
+                  <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 pl-6 sm:pl-0">
                   <button
                     type="button"
                     onClick={() => startEditing(template)}
-                    className="shrink-0 text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
+                    className="text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
                   >
                     Имя
                   </button>
-                ) : null}
                 <button
                   type="button"
                   onClick={() => handleDownload(template)}
-                  className="shrink-0 text-xs font-medium text-[var(--primary)] hover:text-[var(--primary-dark)]"
+                  className="text-xs font-medium text-[var(--primary)] hover:text-[var(--primary-dark)]"
                 >
                   Скачать
                 </button>
@@ -307,10 +311,12 @@ export function TemplatesPanel() {
                   type="button"
                   onClick={() => handleDelete(template.id)}
                   disabled={deletingId === template.id}
-                  className="shrink-0 text-xs font-medium text-[var(--danger-text)] hover:opacity-80 disabled:opacity-50"
+                  className="text-xs font-medium text-[var(--danger-text)] hover:opacity-80 disabled:opacity-50"
                 >
                   {deletingId === template.id ? "…" : "Удалить"}
                 </button>
+                  </div>
+                ) : null}
               </li>
             );
             })}

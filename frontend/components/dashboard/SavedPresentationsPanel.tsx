@@ -157,7 +157,7 @@ export function SavedPresentationsPanel({ refreshSignal }: SavedPresentationsPan
   }
 
   return (
-    <div className="flex min-h-[280px] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6">
+    <div className="flex min-h-[280px] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-6">
       <div>
         <h2 className="font-semibold text-[var(--foreground)]">Мои презентации</h2>
         <p className="mt-1 text-sm text-[var(--muted)]">
