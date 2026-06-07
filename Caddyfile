@@ -1,4 +1,5 @@
-vm1351626.cloud.nuxt.network {
+# Доступ по IP без HTTPS (Let's Encrypt не выдаёт сертификаты на IP).
+:80 {
   encode zstd gzip
 
   handle /api/* {
