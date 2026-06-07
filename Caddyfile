@@ -1,5 +1,4 @@
-# Доступ по IP без HTTPS (Let's Encrypt не выдаёт сертификаты на IP).
-:80 {
+ai-deck.online, www.ai-deck.online {
   encode zstd gzip
 
   handle /api/* {
