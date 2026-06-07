@@ -65,9 +65,9 @@ DVFU_SLOTS: tuple[DVFUSlot, ...] = (
     DVFUSlot(1, "Название проекта и ФИО докладчика", ("title",), field_contract="title/subtitle/speaker, заполняется системой"),
     DVFUSlot(2, "Таймлайн", ("timeline", "process"), field_contract="ровно 7 событий timeline.steps; первые 2 label короткие, все description конкретные"),
     DVFUSlot(3, "Три смысловых списка", ("agenda", "goals", "problem", "cards"), field_contract="ровно 3 блока: короткий heading + 1-2 предложения body"),
-    DVFUSlot(4, "Этапы создания", ("process", "timeline"), field_contract="ровно 4 этапа process.steps с содержательными title и description"),
+    DVFUSlot(4, "Этапы создания", ("process", "timeline"), field_contract="ровно 5 этапов process.steps с содержательными title и description"),
     DVFUSlot(5, "Четыре подтемы", ("cards", "goals", "agenda"), field_contract="ровно 4 карточки/подтемы, без длинных абзацев"),
-    DVFUSlot(6, "Таблица", ("table",), field_contract="таблица: 4 заголовка и 4-8 строк с реальными показателями/критериями"),
+    DVFUSlot(6, "Таблица", ("table",), field_contract="таблица: 3 смысловые колонки + номер строки, 4-8 строк с реальными критериями"),
     DVFUSlot(7, "Схема из четырёх блоков", ("diagram", "process", "cards"), field_contract="ровно 4 key_points/cards, логическая цепочка"),
     DVFUSlot(8, "Три текстовых блока и изображение", ("cards", "problem", "goals"), True, field_contract="ровно 3 текстовых блока; image может быть materials/generate"),
     DVFUSlot(9, "Чеклист и изображение", ("problem", "goals", "cards"), True, field_contract="ровно 3 пункта чеклиста; image может быть materials/generate"),
@@ -83,9 +83,9 @@ DVFU_AGENT_BRIEF = """
 - Слайд 1: ОБЯЗАТЕЛЬНЫЙ титульный, только название проекта, подзаголовок и ФИО докладчика.
 - Слайд 2: timeline/process, временная шкала: ровно 7 событий; короткие метки + конкретные описания.
 - Слайд 3: agenda/goals/problem/cards, ровно 3 смысловых блока: heading + body.
-- Слайд 4: process/timeline, ровно 4 этапа создания или реализации.
+- Слайд 4: process/timeline, ровно 5 этапов создания или реализации.
 - Слайд 5: cards/goals/agenda, ровно 4 подтемы.
-- Слайд 6: table, таблица: 4 заголовка и 4-8 строк.
+- Слайд 6: table, таблица: 3 смысловые колонки + номер строки, 4-8 строк.
 - Слайд 7: diagram/process/cards, ровно 4 блока схемы.
 - Слайд 8: cards/problem/goals, ровно 3 текстовых блока + изображение.
 - Слайд 9: problem/goals/cards, ровно 3 пункта чеклиста + изображение.
@@ -100,7 +100,7 @@ DVFU_AGENT_BRIEF = """
 Не создавай отдельный слайд под название и не создавай отдельный слайд благодарности:
 они уже есть в шаблоне.
 Избегай повторов: каждый пункт должен раскрывать новую мысль по теме.
-Не используй placeholder-текст: «Введите текст», «ТЕКСТ», «Список», «ЗАГОЛОВОК», «—».
+Не используй placeholder-текст: «Введите текст», «ТЕКСТ», «Текст 1», «Слово 1», «Список», «ЗАГОЛОВОК», «—».
 """
 
 _PLACEHOLDER_TEXTS = {
@@ -116,6 +116,7 @@ _PLACEHOLDER_TEXTS = {
     "год",
     "этап",
     "проект",
+    "глобальные рынки",
     "ед.",
     "ед. изм.",
     "текущее",
@@ -126,7 +127,7 @@ _PLACEHOLDER_TEXTS = {
 
 _OUTLINE_TOPIC_RE = re.compile(r"^#{1,2}\s+(.+)$", re.MULTILINE)
 _GENERIC_RE = re.compile(
-    r"^(?:показатель|этап|список|пункт|блок|результат|шаг)\s*\d*$",
+    r"^(?:показатель|этап|список|пункт|блок|результат|шаг|текст|слово)\s*\d*$",
     re.IGNORECASE,
 )
 _PAGE_NUMBER_SHAPE_IDS = {
@@ -207,17 +208,62 @@ def _fallback_kind_for_position(index: int) -> str:
     return pattern[(index - 1) % len(pattern)]
 
 
-def _fallback_kind_for_position_and_title(index: int, title: str) -> str:
+def _fallback_kind_for_position_and_title(index: int, title: str, *, slot_variant: int | None = None) -> str:
     patterns = (
         ("agenda", "process", "cards", "diagram", "results", "cards", "process", "diagram"),
         ("goals", "cards", "process", "diagram", "results", "cards", "timeline", "diagram"),
         ("problem", "goals", "cards", "process", "results", "diagram", "cards", "process"),
     )
-    variant = zlib.crc32(title.encode("utf-8", errors="ignore")) % len(patterns)
+    variant = (
+        slot_variant
+        if slot_variant is not None
+        else zlib.crc32(title.encode("utf-8", errors="ignore"))
+    ) % len(patterns)
     return patterns[variant][(index - 1) % len(patterns[variant])]
 
 
-def slides_from_outline_for_dvfu(outline: str) -> PresentationSlides:
+def _ensure_outline_sections(
+    sections: list[tuple[str, list[str]]],
+    *,
+    min_count: int = 8,
+) -> list[tuple[str, list[str]]]:
+    if len(sections) >= min_count:
+        return sections[:min_count]
+
+    titles = [title for title, _ in sections if _clean(title)]
+    bullets = [bullet for _, items in sections for bullet in items if _clean(bullet)]
+    if not titles:
+        titles = ["Содержание презентации"]
+    if not bullets:
+        bullets = titles
+
+    focus_titles = (
+        "Контекст",
+        "Цели",
+        "Подход",
+        "Архитектура",
+        "Реализация",
+        "Проверка",
+        "Риски",
+        "Итоги",
+    )
+    existing = {title.casefold() for title, _ in sections}
+    result = list(sections)
+    cursor = 0
+    while len(result) < min_count:
+        focus = focus_titles[len(result) % len(focus_titles)]
+        base_title = titles[len(result) % len(titles)]
+        title = f"{focus}: {base_title}"
+        if title.casefold() in existing:
+            title = focus
+        group = [bullets[(cursor + offset) % len(bullets)] for offset in range(min(3, len(bullets)))]
+        cursor += 2
+        existing.add(title.casefold())
+        result.append((title, group))
+    return result[:min_count]
+
+
+def slides_from_outline_for_dvfu(outline: str, *, slot_variant: int | None = None) -> PresentationSlides:
     semantic_slides: list[SemanticSlide] = []
     chunks = _outline_chunks(outline)
     expanded: list[tuple[str, list[str]]] = []
@@ -229,46 +275,47 @@ def slides_from_outline_for_dvfu(outline: str) -> PresentationSlides:
             midpoint = max(2, len(bullets) // 2)
             expanded[-1] = (title, bullets[:midpoint])
             expanded.append((f"{title}: продолжение", bullets[midpoint:]))
+    expanded = _ensure_outline_sections(expanded, min_count=8)
 
     for index, (title, bullets) in enumerate(expanded[:8], start=1):
         kind = _topic_kind(title, bullets)
         if kind == "cards":
-            kind = _fallback_kind_for_position_and_title(index, title)
+            kind = _fallback_kind_for_position_and_title(index, title, slot_variant=slot_variant)
         if kind == "table":
             rows = [[bullet, "", "", ""] for bullet in bullets[:8]]
             semantic_slides.append(
                 TableSlide(
                     title=title,
                     table=TableSlideData(
-                        headers=["Критерий", "Содержание", "Акцент", "Вывод"],
-                        rows=rows or [[title, "", "", ""]],
+                        headers=["Критерий", "Содержание", "Вывод"],
+                        rows=rows or [[title, "", ""]],
                     ),
                     image=SlideImageSpec(source="none"),
                 )
             )
         elif kind == "timeline":
             steps = [
-                TimelineStep(label=f"Этап {step_index}", description=bullet)
+                TimelineStep(label=_word_label(bullet), description=bullet)
                 for step_index, bullet in enumerate(bullets[:5], start=1)
             ]
             while len(steps) < 3:
-                steps.append(TimelineStep(label=f"Этап {len(steps) + 1}", description=title))
+                steps.append(TimelineStep(label=_word_label(title), description=title))
             semantic_slides.append(TimelineSlide(title=title, steps=steps, image=SlideImageSpec(source="none")))
         elif kind == "process":
             steps = [
-                ProcessStep(title=f"Шаг {step_index}", description=bullet)
+                ProcessStep(title=_word_label(bullet), description=bullet)
                 for step_index, bullet in enumerate(bullets[:5], start=1)
             ]
             while len(steps) < 3:
-                steps.append(ProcessStep(title=f"Шаг {len(steps) + 1}", description=title))
+                steps.append(ProcessStep(title=_word_label(title), description=title))
             semantic_slides.append(ProcessSlide(title=title, steps=steps, image=SlideImageSpec(source="none")))
         elif kind == "results":
             results = [
-                ResultItem(label=f"Итог {result_index}", value=bullet)
+                ResultItem(label=_word_label(bullet, fallback="Итог"), value=bullet)
                 for result_index, bullet in enumerate(bullets[:4], start=1)
             ]
             while len(results) < 2:
-                results.append(ResultItem(label=f"Итог {len(results) + 1}", value=title))
+                results.append(ResultItem(label=_word_label(title, fallback="Итог"), value=title))
             semantic_slides.append(ResultsSlide(title=title, results=results, image=SlideImageSpec(source="none")))
         elif kind == "diagram":
             semantic_slides.append(
@@ -291,11 +338,11 @@ def slides_from_outline_for_dvfu(outline: str) -> PresentationSlides:
             semantic_slides.append(GoalsSlide(title=title, goals=goals, image=SlideImageSpec(source="none")))
         else:
             cards = [
-                CardItem(title=_short_heading(bullet, fallback=f"Пункт {card_index}"), text=bullet)
+                CardItem(title=_word_label(bullet), text=bullet)
                 for card_index, bullet in enumerate(bullets[:4], start=1)
             ]
             while len(cards) < 2:
-                cards.append(CardItem(title=f"Пункт {len(cards) + 1}", text=title))
+                cards.append(CardItem(title=_word_label(title), text=title))
             semantic_slides.append(CardsSlide(title=title, cards=cards, image=SlideImageSpec(source="none")))
 
     if not semantic_slides:
@@ -337,8 +384,8 @@ def _slot_schema_hint(template_slide_number: int) -> dict:
             "type": "table",
             "title": "краткая основная мысль",
             "table": {
-                "headers": ["Показатель", "Ед. изм.", "Текущее", "Целевое"],
-                "rows": [["пример", "ед.", "значение", "значение"]],
+                "headers": ["Критерий", "Содержание", "Вывод"],
+                "rows": [["пример", "содержание", "вывод"]],
             },
         }
     if template_slide_number == 11:
@@ -365,8 +412,12 @@ def _slot_schema_hint(template_slide_number: int) -> dict:
     return {"type": "cards", "title": "краткая основная мысль"}
 
 
-def _draft_slide_plan(slides: PresentationSlides, deck_title: str) -> dict:
-    selected, source_indices, selected_template_indices = _select_slots(slides, deck_title)
+def _draft_slide_plan(slides: PresentationSlides, deck_title: str, *, slot_variant: int | None = None) -> dict:
+    selected, source_indices, selected_template_indices = _select_slots(
+        slides,
+        deck_title,
+        slot_variant=slot_variant,
+    )
     result: list[dict] = []
     for page_number, template_index in enumerate(selected_template_indices, start=1):
         template_slide_number = template_index + 1
@@ -389,6 +440,7 @@ def _draft_slide_plan(slides: PresentationSlides, deck_title: str) -> dict:
                 "allowed_types": list(slot.preferred_types),
                 "field_contract": slot.field_contract,
                 "expected_json_shape": _slot_schema_hint(template_slide_number),
+                "empty_fields_policy": "все пустые строки, cards/text, steps/title/description, results/label/value и key_points обязательны к заполнению агентом",
                 "source_slide_index": source_index,
                 "content": content,
             }
@@ -407,14 +459,44 @@ def _strip_generic_values(value):
     return value
 
 
-def _generic_cards_from_values(title: str, values: Sequence[str], count: int) -> list[dict]:
-    items = _dedupe(values, fallback_prefix="Пункт")
+def _filled_values(title: str, values: Sequence[str], count: int) -> list[str]:
+    items = [
+        item
+        for item in _dedupe(values, fallback_prefix="")
+        if item
+    ]
+    if not items:
+        items = [_clean(title, fallback="Ключевая мысль")]
+    focus = ("Контекст", "Цель", "Подход", "Реализация", "Проверка", "Риски", "Итог", "Вывод")
+    cursor = 0
     while len(items) < count:
-        items.append(f"{title}: дополнительный акцент {len(items) + 1}")
+        base = items[cursor % len(items)]
+        label = focus[len(items) % len(focus)]
+        candidate = base if label.casefold() in base.casefold() else f"{label}: {base}"
+        if candidate.casefold() in {item.casefold() for item in items}:
+            candidate = f"{label}: {_clean(title, fallback=base)}"
+        items.append(candidate)
+        cursor += 1
+    return items[:count]
+
+
+def _full_text_value(value: str, *, title: str) -> str:
+    cleaned = _clean(value)
+    if len(cleaned.split()) >= 4:
+        return cleaned
+    topic = _clean(title, fallback="Тема")
+    label = cleaned or _word_label(topic, fallback="Ключевая мысль")
+    if label.casefold() in topic.casefold():
+        return topic
+    return f"{label}: {topic}"
+
+
+def _generic_cards_from_values(title: str, values: Sequence[str], count: int) -> list[dict]:
+    items = _filled_values(title, values, count)
     return [
         {
-            "title": _short_heading(value, fallback=f"Пункт {idx}"),
-            "text": clamp_text(_clean(value, fallback=title), 180),
+            "title": _word_label(value, fallback=""),
+            "text": _truncate_text_naturally(_full_text_value(value, title=title), 180),
         }
         for idx, value in enumerate(items[:count], start=1)
     ]
@@ -427,56 +509,56 @@ def _coerce_content_for_template_slot(content: dict, template_slide_number: int)
     flat_values = _content_values(semantic, fallback_title=title, max_items=8)
 
     if template_slide_number == 2:
-        values = flat_values or [title]
+        values = _filled_values(title, flat_values, 7)
         steps = []
         for idx in range(7):
-            value = values[idx] if idx < len(values) else values[-1]
+            value = values[idx]
             steps.append(
                 {
-                    "label": _short_heading(value, fallback=f"Этап {idx + 1}"),
-                    "description": clamp_text(value, 140),
+                    "label": _word_label(value, fallback=""),
+                    "description": _truncate_text_naturally(_full_text_value(value, title=title), 140),
                 }
             )
         return {"type": "timeline", "title": title, "steps": steps, "image": content.get("image") or {"source": "none"}}
     if template_slide_number in (4, 12):
-        count = 4
-        values = flat_values or [title]
+        count = 5 if template_slide_number == 4 else 4
+        values = _filled_values(title, flat_values, count)
         steps = []
         for idx in range(count):
-            value = values[idx] if idx < len(values) else values[-1]
+            value = values[idx]
             steps.append(
                 {
-                    "title": _short_heading(value, fallback=f"Этап {idx + 1}"),
-                    "description": clamp_text(value, 160),
+                    "title": _word_label(value, fallback=""),
+                    "description": _truncate_text_naturally(_full_text_value(value, title=title), 160),
                 }
             )
         return {"type": "process", "title": title, "steps": steps, "image": content.get("image") or {"source": "none"}}
     if template_slide_number == 6:
         if content.get("type") == "table" and isinstance(content.get("table"), dict):
             table = content["table"]
-            headers = [str(item) for item in table.get("headers", [])[:4]]
+            headers = [str(item) for item in table.get("headers", [])[:3]]
             rows = table.get("rows", [])[:8]
         else:
-            headers = ["Критерий", "Содержание", "Акцент", "Вывод"]
+            headers = ["Критерий", "Содержание", "Вывод"]
             rows = [
-                [value, "", "", ""]
+                [value, "", ""]
                 for idx, value in enumerate((flat_values or [title])[:8], start=1)
             ]
-        while len(headers) < 4:
-            headers.append(["Критерий", "Содержание", "Акцент", "Вывод"][len(headers)])
+        while len(headers) < 3:
+            headers.append(["Критерий", "Содержание", "Вывод"][len(headers)])
         normalized_rows = []
         for row in rows[:8]:
             if isinstance(row, list):
-                normalized = [str(cell) for cell in row[:4]]
+                normalized = [str(cell) for cell in row[:3]]
             else:
                 normalized = [str(row)]
-            while len(normalized) < 4:
+            while len(normalized) < 3:
                 normalized.append("")
             normalized_rows.append(normalized)
         return {
             "type": "table",
             "title": title,
-            "table": {"headers": headers[:4], "rows": normalized_rows or [[title, "", "", ""]]},
+            "table": {"headers": headers[:3], "rows": normalized_rows or [[title, "", ""]]},
             "image": content.get("image") or {"source": "none"},
         }
     if template_slide_number in (3, 8, 9, 10, 13):
@@ -502,14 +584,14 @@ def _coerce_content_for_template_slot(content: dict, template_slide_number: int)
             "image": content.get("image") or {"source": "none"},
         }
     if template_slide_number == 11:
-        values = flat_values or [title]
+        values = _filled_values(title, flat_values, 3)
         results = []
         for idx in range(3):
-            value = values[idx] if idx < len(values) else values[-1]
+            value = values[idx]
             results.append(
                 {
-                    "label": _short_heading(value, fallback=f"Итог {idx + 1}"),
-                    "value": clamp_text(value, 160),
+                    "label": _word_label(value, fallback=""),
+                    "value": _truncate_text_naturally(_full_text_value(value, title=title), 160),
                 }
             )
         return {"type": "results", "title": title, "results": results, "image": content.get("image") or {"source": "none"}}
@@ -574,9 +656,10 @@ async def refine_dvfu_slides_with_mimo(
     outline: str,
     deck_title: str,
     agent_id: str,
+    slot_variant: int | None = None,
     timeout_seconds: int = 75,
 ) -> PresentationSlides:
-    draft = _draft_slide_plan(slides, deck_title)
+    draft = _draft_slide_plan(slides, deck_title, slot_variant=slot_variant)
     prompt = f"""Ты проверяешь JSON заполнения презентации ДВФУ перед рендером.
 
 Тебе дан план презентации и черновой JSON слайдов. Каждый элемент содержит:
@@ -586,19 +669,22 @@ async def refine_dvfu_slides_with_mimo(
 - allowed_types: допустимые semantic-типы;
 - field_contract: точное количество и смысл полей, которые реально есть в макете;
 - expected_json_shape: пример JSON-структуры, которая лучше всего ложится в макет;
+- empty_fields_policy: правило заполнения пустых полей;
 - content: текущий контент слайда.
 
 Задача:
 1. Верни ТОЛЬКО валидный JSON в том же формате: {{"slides":[{{"page":...,"template_slide":...,"content":...}}]}}.
 2. Исправь content так, чтобы каждый блок был заполнен текстом строго по теме и плану.
-3. Строго соблюдай field_contract: если макет требует ровно 3 блока — верни 3, если 4 этапа — верни 4, если 7 событий — верни 7.
+3. Строго соблюдай field_contract: если макет требует ровно 3 блока — верни 3, если 5 этапов — верни 5, если 7 событий — верни 7.
 4. type внутри content должен быть одним из allowed_types и соответствовать expected_json_shape.
-5. Убери любые generic/placeholder-фразы: "Показатель 1", "Этап 1", "Список 1", "Пункт 1", "Блок 4", "Введите текст", "ТЕКСТ".
+5. Убери любые generic/placeholder-фразы: "Показатель 1", "Этап 1", "Список 1", "Пункт 1", "Блок 4", "Введите текст", "ТЕКСТ", "Текст 1", "Слово 1".
 6. Не повторяй одинаковый текст в разных блоках и на соседних слайдах.
 7. Для table используй реальные строки и заголовки из материалов/плана.
 8. Для process/timeline подпиши шаги содержательно, не "Шаг 1".
 9. Текст каждого блока должен быть кратким: 1 предложение, до 140 символов.
-10. Не добавляй титульный и финальный содержательные слайды: они уже фиксированы в шаблоне.
+10. Не оставляй пустых строк в обязательных полях макета. Если в черновике пусто, сформулируй недостающий текст по outline.
+11. Для коротких полей "Слово" верни обобщающее слово/категорию, а не начало соседнего текста.
+12. Не добавляй титульный и финальный содержательные слайды: они уже фиксированы в шаблоне.
 
 Каталог шаблона:
 {DVFU_AGENT_BRIEF}
@@ -675,6 +761,35 @@ def _short_heading(text: str, *, fallback: str) -> str:
     return clamp_text(" ".join(words[:4]) or fallback, 42, ellipsis=False)
 
 
+def _word_label(text: str, *, fallback: str = "") -> str:
+    cleaned = _clean(text)
+    lowered = cleaned.casefold()
+    rules = (
+        (("цель", "задач"), "Цель"),
+        (("огранич", "барьер", "риск", "проблем"), "Риски"),
+        (("пользовател", "сценар"), "Сценарии"),
+        (("критер", "метрик", "показател", "kpi"), "Критерии"),
+        (("анализ", "исслед"), "Анализ"),
+        (("требован",), "Требования"),
+        (("проектир", "структур"), "Структура"),
+        (("разработ", "интерфейс"), "Разработка"),
+        (("тест", "провер"), "Проверка"),
+        (("запуск", "сопровожд"), "Запуск"),
+        (("данн", "sql", "баз"), "Данные"),
+        (("архитект",), "Архитектура"),
+        (("эффект", "результ", "итог", "вывод"), "Итог"),
+        (("качество",), "Качество"),
+        (("скорост", "время"), "Скорость"),
+    )
+    for needles, label in rules:
+        if any(needle in lowered for needle in needles):
+            return label
+    words = re.findall(r"[A-Za-zА-Яа-яЁё0-9]+", cleaned)
+    if not words:
+        return fallback
+    return clamp_text(" ".join(words[:2]), 28, ellipsis=False)
+
+
 def _first_sentence(text: str) -> str:
     cleaned = _clean(text)
     match = re.search(r"^(.+?[.!?])(?:\s|$)", cleaned)
@@ -682,6 +797,34 @@ def _first_sentence(text: str) -> str:
         return match.group(1).strip()
     parts = re.split(r"[;:]\s+", cleaned)
     return parts[0].strip() if parts else cleaned
+
+
+def _truncate_text_naturally(text: str, max_chars: int) -> str:
+    cleaned = _clean(text)
+    if len(cleaned) <= max_chars:
+        return cleaned
+
+    sentences = re.findall(r".+?(?:[.!?](?=\s|$)|$)", cleaned)
+    result = ""
+    for sentence in sentences:
+        candidate = _compact(f"{result} {sentence}" if result else sentence)
+        if len(candidate) <= max_chars:
+            result = candidate
+        else:
+            break
+    if result:
+        return result
+
+    window = cleaned[: max(1, max_chars)].rstrip()
+    for separator in (". ", "! ", "? ", "; ", ": ", ", "):
+        index = window.rfind(separator)
+        if index >= max_chars * 0.45:
+            return window[: index + 1].strip()
+
+    space_index = window.rfind(" ")
+    if space_index >= max_chars * 0.45:
+        return window[:space_index].rstrip(" ,;:") + "."
+    return window.rstrip(" ,;:") + "."
 
 
 def _find_shape(slide, shape_id: int):
@@ -706,7 +849,7 @@ def _set_text(shape, text: str, *, max_chars: int = 260) -> None:
             capacity = min(max_chars, _text_capacity(shape))
         if len(raw) > capacity:
             one_sentence = _first_sentence(raw)
-            value = one_sentence if len(one_sentence) <= capacity else clamp_text(one_sentence, capacity)
+            value = _truncate_text_naturally(one_sentence, capacity)
         else:
             value = raw
     text_frame = shape.text_frame
@@ -744,6 +887,29 @@ def _clear_text(shape) -> None:
 
 def _set_by_id(slide, shape_id: int, text: str, *, max_chars: int = 260) -> None:
     _set_text(_find_shape(slide, shape_id), text, max_chars=max_chars)
+
+
+def _set_text_preserve_style(shape, text: str, *, max_chars: int = 260) -> None:
+    if shape is None or not getattr(shape, "has_text_frame", False):
+        return
+    value = _truncate_text_naturally(text, max_chars)
+    paragraphs = list(shape.text_frame.paragraphs)
+    if not paragraphs:
+        return
+    first = paragraphs[0]
+    if first.runs:
+        first.runs[0].text = value
+        for run in first.runs[1:]:
+            run.text = ""
+    else:
+        first.text = value
+    for paragraph in paragraphs[1:]:
+        for run in paragraph.runs:
+            run.text = ""
+
+
+def _set_by_id_preserve_style(slide, shape_id: int, text: str, *, max_chars: int = 260) -> None:
+    _set_text_preserve_style(_find_shape(slide, shape_id), text, max_chars=max_chars)
 
 
 def _set_page_number(slide, template_slide_number: int, page_number: int) -> None:
@@ -846,7 +1012,7 @@ def _flatten_slide(slide: SemanticSlide) -> list[str]:
 
 def _content_values(slide: SemanticSlide | None, *, fallback_title: str, max_items: int = 8) -> list[str]:
     if slide is None:
-        return [f"{fallback_title}: ключевая мысль {index}" for index in range(1, max_items + 1)]
+        return []
 
     values: list[str] = []
     if isinstance(slide, AgendaSlide):
@@ -894,11 +1060,11 @@ def _content_values(slide: SemanticSlide | None, *, fallback_title: str, max_ite
         values = _flatten_slide(slide)
 
     cleaned = _dedupe(values, fallback_prefix=fallback_title)
+    if cleaned == [fallback_title]:
+        cleaned = []
     title = _clean(getattr(slide, "title", None))
     if title:
         cleaned = [value for value in cleaned if value.casefold() != title.casefold()]
-    while len(cleaned) < max_items:
-        cleaned.append(f"{fallback_title}: дополнительный акцент {len(cleaned) + 1}")
     return cleaned[:max_items]
 
 
@@ -907,7 +1073,11 @@ def _card_text(card: CardItem) -> str:
 
 
 def _result_text(result: ResultItem) -> str:
-    return _joined([result.value, result.label], separator="\n")
+    value = _clean(result.value)
+    label = _clean(result.label)
+    if value and label and label.casefold() in value.casefold():
+        return value
+    return _joined([value, label], separator="\n")
 
 
 def _title(slide: SemanticSlide | None, fallback: str) -> str:
@@ -915,9 +1085,10 @@ def _title(slide: SemanticSlide | None, fallback: str) -> str:
 
 
 def _items(slide: SemanticSlide | None, count: int, *, fallback_title: str) -> list[str]:
-    values = _content_values(slide, fallback_title=fallback_title, max_items=count)
+    title = _title(slide, fallback_title)
+    values = _filled_values(title, _content_values(slide, fallback_title=fallback_title, max_items=count), count)
     return [
-        clamp_text(_clean(value, fallback=f"{fallback_title}: акцент {idx + 1}"), 220)
+        _truncate_text_naturally(_full_text_value(value, title=title), 220)
         for idx, value in enumerate(values[:count])
     ]
 
@@ -928,22 +1099,23 @@ def _steps(slide: SemanticSlide | None, count: int) -> list[tuple[str, str]]:
     elif isinstance(slide, ProcessSlide):
         raw = [(step.title, step.description or "") for step in slide.steps]
     elif isinstance(slide, CardsSlide):
-        raw = [(card.title, card.text) for card in slide.cards]
+        raw = [
+            (
+                _word_label(card.text or card.title, fallback=""),
+                _full_text_value(card.text or card.title, title=slide.title),
+            )
+            for card in slide.cards
+        ]
     else:
         values = _items(slide, count, fallback_title="Этап")
-        raw = [(f"Этап {idx}", value) for idx, value in enumerate(values, start=1)]
+        raw = [(_word_label(value, fallback=""), value) for value in values]
 
     while len(raw) < count:
-        raw.append(
-            (
-                f"Этап {len(raw) + 1}",
-                f"{_title(slide, 'Тема')}: дополнительный шаг {len(raw) + 1}",
-            )
-        )
+        raw.append(("", ""))
     return [
         (
-            clamp_text(_clean(label, fallback=f"Этап {idx}"), 40),
-            clamp_text(_clean(description, fallback=label), 180),
+            clamp_text(_clean(label), 40),
+            _truncate_text_naturally(_full_text_value(description, title=_title(slide, "Тема")), 180),
         )
         for idx, (label, description) in enumerate(raw[:count], start=1)
     ]
@@ -966,16 +1138,20 @@ def _best_slot_for_slide(
     if not candidates:
         return None
 
+    image_candidates = [slot for slot in candidates if has_image and slot.requires_image]
+    if image_candidates:
+        candidates = image_candidates
+
     # ДВФУ-шаблон линейный: если рано занять дальний макет (например, схему 13),
     # последующие содержательные слайды уже некуда будет поставить.
     nearby_candidates = [slot for slot in candidates if slot.slide_number <= last_slot_number + 3]
-    if nearby_candidates:
+    if nearby_candidates and not image_candidates:
         candidates = nearby_candidates
 
     def score(slot: DVFUSlot) -> tuple[int, int, int]:
         match_score = _slot_score(source.type, slot)
         diversity_bonus = 4 if source.type not in used_slide_types else 0
-        image_bonus = 2 if has_image and slot.requires_image else 0
+        image_bonus = 30 if has_image and slot.requires_image else 0
         distance_penalty = max(0, slot.slide_number - last_slot_number - 1) * 8
         return (
             match_score + diversity_bonus + image_bonus - distance_penalty,
@@ -986,12 +1162,17 @@ def _best_slot_for_slide(
     return max(candidates, key=score)
 
 
-def _content_slot_numbers(deck_title: str, *, has_image_slots: bool) -> set[int]:
+def _content_slot_numbers(
+    deck_title: str,
+    *,
+    has_image_slots: bool,
+    slot_variant: int | None = None,
+) -> tuple[int, ...]:
     if has_image_slots:
         variants = (
-            (2, 3, 4, 5, 6, 8, 11, 12),
-            (2, 4, 5, 7, 8, 10, 11, 13),
-            (3, 4, 6, 7, 9, 10, 12, 13),
+            (2, 3, 4, 5, 8, 9, 10, 11),
+            (2, 4, 5, 7, 8, 9, 10, 13),
+            (3, 4, 6, 7, 8, 9, 10, 12),
         )
     else:
         variants = (
@@ -999,8 +1180,26 @@ def _content_slot_numbers(deck_title: str, *, has_image_slots: bool) -> set[int]
             (2, 4, 5, 6, 7, 11, 12, 13),
             (3, 4, 5, 6, 7, 11, 12, 13),
         )
-    variant = zlib.crc32(deck_title.encode("utf-8", errors="ignore")) % len(variants)
-    return set(variants[variant])
+    variant = (
+        slot_variant
+        if slot_variant is not None
+        else zlib.crc32(deck_title.encode("utf-8", errors="ignore"))
+    ) % len(variants)
+    return variants[variant]
+
+
+def _slide_wants_image(slide: SemanticSlide) -> bool:
+    return bool(getattr(slide, "image", None) and slide.image.source != "none")
+
+
+def _source_has_available_image(
+    source_index: int,
+    slide: SemanticSlide,
+    slide_images: dict[int, bytes] | None,
+) -> bool:
+    if slide_images is not None:
+        return source_index in slide_images
+    return _slide_wants_image(slide)
 
 
 def _select_slots(
@@ -1009,6 +1208,7 @@ def _select_slots(
     *,
     slide_images: dict[int, bytes] | None = None,
     max_total_slides: int = 10,
+    slot_variant: int | None = None,
 ) -> tuple[list[SemanticSlide | None], dict[int, int], list[int]]:
     selected: list[SemanticSlide | None] = [None] * 14
     source_indices: dict[int, int] = {}
@@ -1025,39 +1225,84 @@ def _select_slots(
         for idx, slide in enumerate(slides.slides)
         if slide.type not in {"title", "thank_you", "conclusion"}
     ][:content_limit]
+    while len(content_slides) < content_limit:
+        synthetic_index = len(content_slides)
+        content_slides.append(
+            (
+                synthetic_index,
+                CardsSlide(
+                    title=f"Раздел {synthetic_index + 1}: {deck_title}",
+                    cards=[],
+                    image=SlideImageSpec(source="none"),
+                ),
+            )
+        )
 
-    has_image_slots = any(slide_images and idx in slide_images for idx, _ in content_slides)
-    allowed_slot_numbers = _content_slot_numbers(deck_title, has_image_slots=has_image_slots)
+    image_source_count = sum(
+        1
+        for idx, slide in content_slides
+        if _source_has_available_image(idx, slide, slide_images)
+    )
+    has_image_slots = image_source_count > 0
+    route = list(_content_slot_numbers(deck_title, has_image_slots=has_image_slots, slot_variant=slot_variant))
+    if has_image_slots:
+        image_slots_to_keep = {
+            slide_number
+            for slide_number in route
+            if DVFU_SLOTS[slide_number - 1].requires_image
+        }
+        image_slots_to_keep = set(sorted(image_slots_to_keep)[:image_source_count])
+        route = [
+            slide_number
+            for slide_number in route
+            if not DVFU_SLOTS[slide_number - 1].requires_image or slide_number in image_slots_to_keep
+        ]
+        for slot in DVFU_SLOTS:
+            if len(route) >= content_limit:
+                break
+            if not (2 <= slot.slide_number <= 13) or slot.requires_image or slot.slide_number in route:
+                continue
+            route.append(slot.slide_number)
+        route = sorted(route)[:content_limit]
+    allowed_slot_numbers = set(route)
     content_slots = [
         slot
         for slot in DVFU_SLOTS
         if 2 <= slot.slide_number <= 13 and slot.slide_number in allowed_slot_numbers
     ]
-    last_slot_number = 1
-    for source_index, source in content_slides:
-        has_image = bool(slide_images and source_index in slide_images)
-        candidates = [
-            slot
-            for slot in content_slots
-            if slot.slide_number not in used_slots
-            and slot.slide_number > last_slot_number
-            and (not slot.requires_image or has_image)
+
+    remaining = list(content_slides)
+    for slot_index, slot in enumerate(content_slots):
+        image_slots_left = sum(1 for candidate in content_slots[slot_index:] if candidate.requires_image)
+        image_sources_left = [
+            item for item in remaining if _source_has_available_image(item[0], item[1], slide_images)
         ]
-        best_slot = _best_slot_for_slide(
-            source=source,
-            candidates=candidates,
-            used_slide_types=used_slide_types,
-            has_image=has_image,
-            last_slot_number=last_slot_number,
-        )
-        if best_slot is None:
+        if slot.requires_image and not image_sources_left:
+            continue
+        if slot.requires_image and image_sources_left:
+            candidates = image_sources_left
+        elif not slot.requires_image and len(image_sources_left) >= image_slots_left:
+            candidates = [item for item in remaining if item not in image_sources_left] or remaining
+        else:
+            candidates = remaining
+        if not candidates:
             break
-        template_index = best_slot.slide_number - 1
+
+        def source_score(item: tuple[int, SemanticSlide]) -> tuple[int, int, int]:
+            source_index, source = item
+            has_image = _source_has_available_image(source_index, source, slide_images)
+            image_score = 30 if has_image and slot.requires_image else -30 if has_image and not slot.requires_image else 0
+            type_score = _slot_score(source.type, slot)
+            diversity_bonus = 4 if source.type not in used_slide_types else 0
+            return (image_score + type_score + diversity_bonus, -source_index, -len(source.type))
+
+        source_index, source = max(candidates, key=source_score)
+        remaining.remove((source_index, source))
+        template_index = slot.slide_number - 1
         selected[template_index] = source
         source_indices[template_index] = source_index
-        used_slots.add(best_slot.slide_number)
+        used_slots.add(slot.slide_number)
         used_slide_types.add(source.type)
-        last_slot_number = best_slot.slide_number
         selected_template_indices.append(template_index)
 
     selected_template_indices.append(13)
@@ -1070,25 +1315,27 @@ def _fill_table(slide, spec: SemanticSlide | None) -> None:
         return
 
     table = table_shape.table
+    data_columns = max(1, len(table.columns) - 1)
+    default_headers = ["Критерий", "Содержание", "Вывод"][:data_columns]
     if isinstance(spec, TableSlide):
-        headers = spec.table.headers[:4]
+        headers = spec.table.headers[:data_columns]
         rows = spec.table.rows[:8]
     else:
-        headers = ["Критерий", "Содержание", "Акцент", "Вывод"]
+        headers = default_headers
         values = _items(spec, 8, fallback_title="Показатель")
-        rows = [[value, "", "", ""] for value in values]
+        rows = [[value, *[""] * (data_columns - 1)] for value in values]
 
-    while len(headers) < 4:
-        headers.append(["Критерий", "Содержание", "Акцент", "Вывод"][len(headers)])
+    while len(headers) < data_columns:
+        headers.append(default_headers[len(headers)] if len(headers) < len(default_headers) else f"Колонка {len(headers) + 1}")
     headers = [
-        ["Критерий", "Содержание", "Акцент", "Вывод"][idx]
+        default_headers[idx] if idx < len(default_headers) else f"Колонка {idx + 1}"
         if _is_table_service_value(header)
         else header
-        for idx, header in enumerate(headers[:4])
+        for idx, header in enumerate(headers[:data_columns])
     ]
 
     table.cell(0, 0).text = "№"
-    for col, header in enumerate(headers[:4], start=1):
+    for col, header in enumerate(headers[:data_columns], start=1):
         table.cell(0, col).text = clamp_text(_clean(header, fallback=f"Колонка {col}"), 32)
 
     for row_idx in range(1, len(table.rows)):
@@ -1105,7 +1352,7 @@ def _fill_table(slide, spec: SemanticSlide | None) -> None:
             value = source[col_idx - 1] if col_idx - 1 < len(source) else ""
             if _is_table_service_value(value):
                 value = ""
-            table.cell(row_idx, col_idx).text = clamp_text(_clean(value), 80)
+            table.cell(row_idx, col_idx).text = _truncate_text_naturally(value, 80)
 
 
 def _result_items(spec: SemanticSlide | None) -> list[str]:
@@ -1155,17 +1402,17 @@ def _fill_slide(
         _set_by_id(slide, 29, title)
         bodies = _items(spec, 3, fallback_title="Список")
         for shape_id, body in zip((63, 68, 70), bodies):
-            _set_by_id(slide, shape_id, _short_heading(body, fallback="Направление"), max_chars=32)
+            _set_by_id(slide, shape_id, _word_label(body), max_chars=32)
         for shape_id, body in zip((61, 67, 69), bodies):
             _set_by_id(slide, shape_id, body, max_chars=220)
     elif slide_number == 4:
         _set_by_id(slide, 2, title)
-        steps = _steps(spec, 4)
-        for shape_id, (label, _) in zip((96, 97, 98, 99), steps):
+        steps = _steps(spec, 5)
+        for shape_id, (label, _) in zip((96, 97, 98, 99, 89), steps):
             _set_by_id(slide, shape_id, label, max_chars=32)
-        for shape_id, (_, description) in zip((3, 5, 6, 7), steps):
+        for shape_id, (_, description) in zip((3, 4, 6, 5, 7), steps):
             _set_by_id(slide, shape_id, description, max_chars=220)
-        for shape_id in (88, 89, 90, 114, 4):
+        for shape_id in (88, 90, 114):
             _clear_text(_find_shape(slide, shape_id))
     elif slide_number == 5:
         _set_by_id(slide, 93, title)
@@ -1176,7 +1423,7 @@ def _fill_slide(
         _fill_table(slide, spec)
     elif slide_number == 7:
         _set_by_id(slide, 3, title)
-        _set_by_id(slide, 33, _short_heading(title, fallback="Схема действий"), max_chars=42)
+        _set_by_id(slide, 33, _word_label(title, fallback="Схема"), max_chars=42)
         for shape_id, body in zip((5, 14, 16, 10), _items(spec, 4, fallback_title="Блок")):
             _set_by_id(slide, shape_id, body, max_chars=180)
     elif slide_number == 8:
@@ -1198,21 +1445,21 @@ def _fill_slide(
         _set_by_id(slide, 6, title)
         items = _result_items(spec)
         while len(items) < 3:
-            items.append(f"Результат {len(items) + 1}: {title}")
+            items.append("")
         _set_by_id(slide, 7, items[0], max_chars=240)
         _set_by_id(slide, 8, items[1], max_chars=240)
         _set_by_id(slide, 9, items[2], max_chars=240)
     elif slide_number == 12:
         _set_by_id(slide, 3, title)
-        _set_by_id(slide, 16, _short_heading(title, fallback="Последовательность"), max_chars=42)
+        _set_by_id(slide, 16, _word_label(title, fallback="Схема"), max_chars=42)
         for shape_id, body in zip((17, 18, 19, 20), _items(spec, 4, fallback_title="Этап")):
             _set_by_id(slide, shape_id, body, max_chars=160)
     elif slide_number == 13:
         _set_by_id(slide, 13, title)
-        _set_by_id(slide, 35, _short_heading(title, fallback="Схема"), max_chars=42)
+        _set_by_id(slide, 35, _word_label(title, fallback="Схема"), max_chars=42)
         items = _items(spec, 3, fallback_title="Блок")
         for shape_id, body in zip((3, 5, 28), items):
-            _set_by_id(slide, shape_id, _short_heading(body, fallback="Этап"), max_chars=32)
+            _set_by_id(slide, shape_id, _word_label(body), max_chars=32)
         for shape_id, body in zip((25, 26, 34), items):
             _set_by_id(slide, shape_id, body, max_chars=120)
 
@@ -1265,6 +1512,7 @@ def build_dvfu_pptx(
     deck_title: str,
     presenter_name: str | None,
     subtitle: str | None = None,
+    slot_variant: int | None = None,
 ) -> tuple[bytes, PresentationSlides]:
     prs = Presentation(io.BytesIO(template_bytes))
     if len(prs.slides) < 14:
@@ -1274,15 +1522,16 @@ def build_dvfu_pptx(
         slides,
         deck_title,
         slide_images=slide_images,
+        slot_variant=slot_variant,
     )
     selected = [
         _adapt_slide_to_template_slot(slide, index + 1)
         for index, slide in enumerate(selected)
     ]
     slide1 = prs.slides[0]
-    _set_by_id(slide1, 10, deck_title, max_chars=120)
-    _set_by_id(slide1, 19, subtitle or "Проектная презентация", max_chars=80)
-    _set_by_id(slide1, 9, presenter_name or "Докладчик", max_chars=80)
+    _set_by_id_preserve_style(slide1, 10, deck_title, max_chars=120)
+    _set_by_id_preserve_style(slide1, 19, subtitle or "Проектная презентация", max_chars=80)
+    _set_by_id_preserve_style(slide1, 9, presenter_name or "Докладчик", max_chars=80)
 
     for page_number, template_index in enumerate(selected_template_indices, start=1):
         if template_index in (0, 13):

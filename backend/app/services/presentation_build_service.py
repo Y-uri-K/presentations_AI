@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import time
 from typing import Dict, List, Tuple
 
@@ -310,30 +311,16 @@ async def build_presentation_file(
         if presentation.template_id is None:
             _set_build_stage(db, presentation_id, "content_plan")
             stage = time.perf_counter()
-            slides = slides_from_outline_for_dvfu(outline)
+            dvfu_slot_variant = random.SystemRandom().randrange(0, 9)
+            slides = slides_from_outline_for_dvfu(outline, slot_variant=dvfu_slot_variant)
             logger.info(
-                "Этап «структура слайдов ДВФУ» (локальный draft): %s слайдов за %.1f с",
+                "Этап «структура слайдов ДВФУ» (локальный draft): %s слайдов за %.1f с, variant=%s",
                 len(slides.slides),
                 time.perf_counter() - stage,
+                dvfu_slot_variant,
             )
             enrich_presentation_from_outline(slides, outline, max_items_per_slide=6)
             enforce_presentation_text_control(slides)
-
-            _set_build_stage(db, presentation_id, "content_plan")
-            stage = time.perf_counter()
-            slides = await refine_dvfu_slides_with_mimo(
-                slides=slides,
-                outline=outline,
-                deck_title=deck_title,
-                agent_id="mimo",
-                timeout_seconds=DVFU_REFINEMENT_TIMEOUT_SECONDS,
-            )
-            enforce_presentation_text_control(slides)
-            logger.info(
-                "Этап «проверка JSON ДВФУ»: %s слайдов за %.1f с",
-                len(slides.slides),
-                time.perf_counter() - stage,
-            )
 
             user_style_preview = extract_user_template_style(template_bytes)
             apply_slide_image_plan(
@@ -344,6 +331,31 @@ async def build_presentation_file(
             )
             if not generate_images:
                 clear_generated_image_requests(slides)
+
+            _set_build_stage(db, presentation_id, "content_plan")
+            stage = time.perf_counter()
+            slides = await refine_dvfu_slides_with_mimo(
+                slides=slides,
+                outline=outline,
+                deck_title=deck_title,
+                agent_id="mimo",
+                slot_variant=dvfu_slot_variant,
+                timeout_seconds=DVFU_REFINEMENT_TIMEOUT_SECONDS,
+            )
+            enforce_presentation_text_control(slides)
+            apply_slide_image_plan(
+                slides,
+                presentation_prompt=presentation_prompt,
+                content_image_side=user_style_preview.content_image_side,
+                enabled=generate_images,
+            )
+            if not generate_images:
+                clear_generated_image_requests(slides)
+            logger.info(
+                "Этап «проверка JSON ДВФУ»: %s слайдов за %.1f с",
+                len(slides.slides),
+                time.perf_counter() - stage,
+            )
 
             _set_build_stage(db, presentation_id, "images")
             stage = time.perf_counter()
@@ -359,6 +371,7 @@ async def build_presentation_file(
                 deck_title=deck_title,
                 presenter_name=user.full_name or user.username,
                 subtitle=presentation_prompt,
+                slot_variant=dvfu_slot_variant,
             )
             logger.info(
                 "Этап «PPTX ДВФУ»: %.1f с, размер %s КБ",
