@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     email_send_cooldown_seconds: int = 60
 
     cors_origins: str = "http://localhost:3000"
+    public_api_base_url: str = ""
 
     email_dev_mode: bool = True
     smtp_host: str = ""

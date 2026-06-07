@@ -8,7 +8,9 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from app.core.content_disposition import attachment_content_disposition
+from app.config import get_settings
+from app.core.content_disposition import attachment_content_disposition, inline_content_disposition
+from app.core.public_url import build_public_api_url
 from app.core.deps import get_current_user
 from app.database import get_db
 from app.models import User
@@ -26,6 +28,7 @@ from app.schemas.templates import (
 from app.services import template_service as templates
 
 router = APIRouter(prefix="/api/templates", tags=["templates"])
+settings = get_settings()
 
 
 @router.get("", response_model=List[TemplateListItem])
@@ -159,7 +162,8 @@ def view_public_template(
 ):
     template = templates.get_public_template(db, template_id=template_id)
     headers = {
-        "Content-Disposition": f'inline; filename="{template.original_filename}"',
+        "Content-Disposition": inline_content_disposition(template.original_filename),
+        "Cache-Control": "public, max-age=3600",
     }
     return Response(
         content=template.file_data,
@@ -192,8 +196,12 @@ def preview_public_template(
     db: Session = Depends(get_db),
 ):
     preview = templates.get_public_template_preview(db, template_id=template_id)
-    if preview["file_type"] == "pptx":
-        file_view_url = str(request.url_for("view_public_template", template_id=template_id))
+    if preview["file_type"] == "pptx" and preview["preview_kind"] == "office":
+        file_view_url = build_public_api_url(
+            settings,
+            request,
+            f"/api/templates/public/{template_id}/view",
+        )
         preview["file_view_url"] = file_view_url
         preview["office_viewer_url"] = (
             "https://view.officeapps.live.com/op/embed.aspx?src="

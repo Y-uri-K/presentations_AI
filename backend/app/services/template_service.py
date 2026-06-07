@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import base64
+import io
 import re
+import zipfile
 from pathlib import Path
 from typing import Optional
 
@@ -299,6 +301,22 @@ def rate_template(db: Session, *, user_id: int, template_id: int, rating: int) -
     }
 
 
+def _extract_pptx_thumbnail_data_url(file_data: bytes) -> str | None:
+    candidates = (
+        ("docProps/thumbnail.jpeg", "image/jpeg"),
+        ("docProps/thumbnail.png", "image/png"),
+    )
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_data)) as archive:
+            for path, mime in candidates:
+                if path in archive.namelist():
+                    encoded = base64.b64encode(archive.read(path)).decode("ascii")
+                    return f"data:{mime};base64,{encoded}"
+    except Exception:
+        return None
+    return None
+
+
 def get_public_template_preview(db: Session, *, template_id: int) -> dict:
     template = get_public_template(db, template_id=template_id)
     image_data_url = None
@@ -320,7 +338,8 @@ def get_public_template_preview(db: Session, *, template_id: int) -> dict:
         except Exception:
             image_data_url = None
     elif template.file_type == "pptx":
-        preview_kind = "office"
+        image_data_url = _extract_pptx_thumbnail_data_url(template.file_data)
+        preview_kind = "image" if image_data_url else "office"
 
     return {
         "template_id": template.id,

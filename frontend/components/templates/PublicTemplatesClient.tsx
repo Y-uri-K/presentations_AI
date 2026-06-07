@@ -94,6 +94,28 @@ export function PublicTemplatesClient() {
     };
   }, [normalizedSearch, sort]);
 
+  useEffect(() => {
+    if (!preview) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setPreview(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [preview]);
+
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -176,7 +198,7 @@ export function PublicTemplatesClient() {
 
   return (
     <section className="space-y-5">
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid flex-1 gap-3 sm:grid-cols-[1fr_220px]">
             <label className="block">
@@ -208,7 +230,7 @@ export function PublicTemplatesClient() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-dark)] disabled:opacity-60"
+            className="w-full rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-dark)] disabled:opacity-60 sm:w-auto"
           >
             {isUploading ? "Загрузка…" : "Выложить шаблон"}
           </button>
@@ -239,7 +261,7 @@ export function PublicTemplatesClient() {
           {templates.map((template) => (
             <article
               key={template.id}
-              className="flex min-h-[260px] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm"
+              className="flex min-h-[260px] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm sm:p-5"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -315,7 +337,7 @@ export function PublicTemplatesClient() {
                 </div>
               </div>
 
-              <div className="mt-auto flex gap-2 pt-5">
+              <div className="mt-auto flex flex-col gap-2 pt-5 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => handlePreview(template.id)}
@@ -340,17 +362,18 @@ export function PublicTemplatesClient() {
 
       {preview ? (
         <div
-          className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/60 px-4 py-8"
+          className="fixed inset-0 z-30 flex items-end justify-center bg-slate-950/60 sm:items-center sm:px-4 sm:py-8"
           role="dialog"
           aria-modal="true"
         >
-          <div className="max-h-full w-full max-w-3xl overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
+          <div className="flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-xl sm:max-h-[calc(100dvh-4rem)] sm:max-w-3xl sm:rounded-2xl">
+            <div className="overflow-y-auto p-4 sm:p-6">
+            <div className="flex items-start justify-between gap-3 sm:gap-4">
               <div>
                 <p className="text-sm font-medium uppercase tracking-wide text-[var(--subtle)]">
                   Предпросмотр
                 </p>
-                <h2 className="mt-1 text-xl font-semibold text-[var(--foreground)]">
+                <h2 className="mt-1 text-lg font-semibold text-[var(--foreground)] sm:text-xl">
                   {preview.name}
                 </h2>
               </div>
@@ -364,21 +387,21 @@ export function PublicTemplatesClient() {
             </div>
 
             <div className="mt-5 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-muted)]">
-              {preview.office_viewer_url ? (
-                <iframe
-                  title={`Предпросмотр шаблона ${preview.name}`}
-                  src={preview.office_viewer_url}
-                  className="h-[560px] w-full bg-white"
-                  allowFullScreen
-                />
-              ) : preview.image_data_url ? (
+              {preview.image_data_url ? (
                 <Image
                   src={preview.image_data_url}
                   alt={`Предпросмотр шаблона ${preview.name}`}
                   width={1200}
                   height={800}
                   unoptimized
-                  className="mx-auto max-h-[560px] w-full object-contain"
+                  className="mx-auto max-h-[min(560px,50dvh)] w-full object-contain sm:max-h-[min(560px,60vh)]"
+                />
+              ) : preview.office_viewer_url ? (
+                <iframe
+                  title={`Предпросмотр шаблона ${preview.name}`}
+                  src={preview.office_viewer_url}
+                  className="h-[min(560px,50dvh)] w-full bg-white sm:h-[min(560px,60vh)]"
+                  allowFullScreen
                 />
               ) : (
                 <div className="p-8 text-center">
@@ -394,8 +417,21 @@ export function PublicTemplatesClient() {
 
             {preview.preview_kind === "office" ? (
               <p className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-[var(--muted)]">
-                Предпросмотр PPTX открывается через Microsoft Office Web Viewer. Он работает,
-                только если URL backend доступен Microsoft извне.
+                Предпросмотр PPTX открывается через Microsoft Office Web Viewer. Если окно пустое,
+                скачайте файл — некоторые шаблоны не содержат встроенной миниатюры для просмотра.
+              </p>
+            ) : null}
+
+            {preview.file_view_url ? (
+              <p className="mt-3">
+                <a
+                  href={preview.file_view_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-[var(--primary)] hover:text-[var(--primary-dark)]"
+                >
+                  Открыть исходный файл в новой вкладке
+                </a>
               </p>
             ) : null}
 
@@ -419,6 +455,7 @@ export function PublicTemplatesClient() {
                 </dd>
               </div>
             </dl>
+            </div>
           </div>
         </div>
       ) : null}

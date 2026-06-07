@@ -15,3 +15,12 @@ def attachment_content_disposition(filename: str) -> str:
 
     encoded = quote(normalized, safe="")
     return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
+
+
+def inline_content_disposition(filename: str) -> str:
+    """RFC 5987 inline disposition safe for non-ASCII filenames."""
+    normalized = filename.strip() or "file"
+    ascii_fallback = re.sub(r"[^\w.\- ]", "_", normalized, flags=re.ASCII).strip()
+    ascii_fallback = re.sub(r"\s+", "_", ascii_fallback) or "file"
+    encoded = quote(normalized, safe="")
+    return f"inline; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
