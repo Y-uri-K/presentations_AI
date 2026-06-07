@@ -37,6 +37,10 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function itemActionClassName() {
+  return "inline-flex min-h-9 items-center rounded-md px-2.5 text-xs font-medium sm:min-h-0 sm:px-0";
+}
+
 export function SavedPresentationsPanel({ refreshSignal }: SavedPresentationsPanelProps) {
   const [presentations, setPresentations] = useState<PresentationListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -157,19 +161,15 @@ export function SavedPresentationsPanel({ refreshSignal }: SavedPresentationsPan
   }
 
   return (
-    <div className="flex min-h-[280px] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-6">
+    <div className="flex min-h-[280px] min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-6">
       <div>
         <h2 className="font-semibold text-[var(--foreground)]">Мои презентации</h2>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Сохранённые планы и готовые PPTX
-        </p>
+        <p className="mt-1 text-sm text-[var(--muted)]">Сохранённые планы и готовые PPTX</p>
       </div>
 
-      {error ? (
-        <ErrorMessage className="mt-3">{error}</ErrorMessage>
-      ) : null}
+      {error ? <ErrorMessage className="mt-3">{error}</ErrorMessage> : null}
 
-      <div className="mt-4 flex-1">
+      <div className="mt-4 min-h-0 flex-1">
         {isLoading ? (
           <p className="text-sm text-[var(--subtle)]">Загрузка списка…</p>
         ) : presentations.length === 0 ? (
@@ -177,93 +177,97 @@ export function SavedPresentationsPanel({ refreshSignal }: SavedPresentationsPan
             Пока нет сохранённых презентаций. Сгенерируйте план и соберите PPTX.
           </p>
         ) : (
-          <ul className="max-h-64 space-y-2 overflow-y-auto pr-1">
+          <ul className="max-h-[min(360px,50vh)] space-y-2 overflow-y-auto overscroll-contain pr-1 sm:max-h-64">
             {presentations.map((item) => (
               <li
                 key={item.id}
-                className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2"
+                className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3"
               >
-                <div className="flex items-start gap-2">
-                  <span className="shrink-0 rounded-md border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[var(--muted)]">
-                    {statusLabel(item.status)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    {editingId === item.id ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          value={editingTitle}
-                          maxLength={255}
-                          disabled={renamingId === item.id}
-                          onChange={(event) => setEditingTitle(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              void saveRename(item.id);
-                            }
-                            if (event.key === "Escape") {
-                              cancelEditing();
-                            }
-                          }}
-                          className="w-full min-w-0 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[color:var(--focus-ring)]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => saveRename(item.id)}
-                          disabled={renamingId === item.id}
-                          className="shrink-0 text-xs font-medium text-[var(--success-text)] hover:opacity-80 disabled:opacity-50"
-                        >
-                          {renamingId === item.id ? "…" : "OK"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={cancelEditing}
-                          disabled={renamingId === item.id}
-                          className="shrink-0 text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
-                        >
-                          x
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="truncate text-sm font-medium text-[var(--foreground)]">
-                        {item.title}
-                      </p>
-                    )}
-                    <p className="mt-0.5 truncate text-xs text-[var(--subtle)]">
-                      {formatDate(item.updated_at)}
-                      {item.slide_count ? ` · ${item.slide_count} слайд(ов)` : ""}
-                      {item.template_name ? ` · ${item.template_name}` : ""}
-                    </p>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="shrink-0 rounded-md border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[var(--muted)]">
+                      {statusLabel(item.status)}
+                    </span>
                   </div>
+
+                  {editingId === item.id ? (
+                    <div className="mt-2 flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={editingTitle}
+                        maxLength={255}
+                        disabled={renamingId === item.id}
+                        onChange={(event) => setEditingTitle(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void saveRename(item.id);
+                          }
+                          if (event.key === "Escape") {
+                            cancelEditing();
+                          }
+                        }}
+                        className="w-full min-w-0 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[color:var(--focus-ring)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => saveRename(item.id)}
+                        disabled={renamingId === item.id}
+                        className="shrink-0 text-xs font-medium text-[var(--success-text)] hover:opacity-80 disabled:opacity-50"
+                      >
+                        {renamingId === item.id ? "…" : "OK"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEditing}
+                        disabled={renamingId === item.id}
+                        className="shrink-0 text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="mt-2 break-words text-sm font-medium leading-snug text-[var(--foreground)]">
+                      {item.title}
+                    </p>
+                  )}
+
+                  <p className="mt-1 break-words text-xs leading-relaxed text-[var(--subtle)]">
+                    {formatDate(item.updated_at)}
+                    {item.slide_count ? ` · ${item.slide_count} слайд(ов)` : ""}
+                    {item.template_name ? ` · ${item.template_name}` : ""}
+                  </p>
                 </div>
 
-                <div className="mt-2 flex flex-wrap justify-end gap-3">
-                  {editingId !== item.id ? (
+                {editingId !== item.id ? (
+                  <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3 sm:mt-2 sm:justify-end sm:border-0 sm:pt-0">
                     <button
                       type="button"
                       onClick={() => startEditing(item)}
-                      className="text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
+                      className={`${itemActionClassName()} border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--foreground)] sm:border-0 sm:bg-transparent`}
                     >
                       Имя
                     </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => handleDownload(item)}
-                    disabled={!item.has_download || item.status !== "ready" || downloadingId === item.id}
-                    className="text-xs font-medium text-[var(--primary)] hover:text-[var(--primary-dark)] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {downloadingId === item.id ? "Скачивание…" : "Скачать"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(item)}
-                    disabled={deletingId === item.id}
-                    className="text-xs font-medium text-[var(--danger-text)] hover:opacity-80 disabled:opacity-50"
-                  >
-                    {deletingId === item.id ? "…" : "Удалить"}
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDownload(item)}
+                      disabled={
+                        !item.has_download || item.status !== "ready" || downloadingId === item.id
+                      }
+                      className={`${itemActionClassName()} border border-[var(--border)] bg-[var(--surface)] text-[var(--primary)] hover:text-[var(--primary-dark)] disabled:cursor-not-allowed disabled:opacity-50 sm:border-0 sm:bg-transparent`}
+                    >
+                      {downloadingId === item.id ? "Скачивание…" : "Скачать"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item)}
+                      disabled={deletingId === item.id}
+                      className={`${itemActionClassName()} border border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger-text)] hover:opacity-80 disabled:opacity-50 sm:border-0 sm:bg-transparent`}
+                    >
+                      {deletingId === item.id ? "…" : "Удалить"}
+                    </button>
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>

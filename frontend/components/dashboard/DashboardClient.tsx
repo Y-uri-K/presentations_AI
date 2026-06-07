@@ -19,9 +19,13 @@ export function DashboardClient() {
         <CreatePresentationPanel onPresentationsChanged={refreshPresentations} />
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
-        <SavedPresentationsPanel refreshSignal={presentationsRefreshSignal} />
-        <TemplatesPanel />
+      <div className="mt-8 grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="min-w-0">
+          <SavedPresentationsPanel refreshSignal={presentationsRefreshSignal} />
+        </div>
+        <div className="min-w-0">
+          <TemplatesPanel />
+        </div>
       </div>
     </TemplateSelectionProvider>
   );

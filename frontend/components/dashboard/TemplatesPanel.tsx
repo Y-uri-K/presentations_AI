@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
   deleteTemplate,
@@ -16,6 +16,81 @@ import { useTemplateSelection } from "@/components/dashboard/TemplateSelectionCo
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 
 const ACCEPT = ".pptx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+function itemActionClassName() {
+  return "inline-flex min-h-9 items-center rounded-md px-2.5 text-xs font-medium sm:min-h-0 sm:px-0";
+}
+
+function selectionButtonClassName(isSelected: boolean) {
+  return [
+    "mt-0.5 shrink-0 flex h-5 w-5 items-center justify-center rounded-full border-2",
+    isSelected
+      ? "border-[var(--primary)] bg-[var(--primary)]"
+      : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--primary)]",
+  ].join(" ");
+}
+
+type TemplateRowProps = {
+  isSelected: boolean;
+  fileTypeLabel: string;
+  title: string;
+  subtitle: string;
+  onSelect: () => void;
+  selectTitle: string;
+  children?: ReactNode;
+};
+
+function TemplateRow({
+  isSelected,
+  fileTypeLabel,
+  title,
+  subtitle,
+  onSelect,
+  selectTitle,
+  children,
+}: TemplateRowProps) {
+  return (
+    <li
+      className={`rounded-lg border px-3 py-3 ${
+        isSelected
+          ? "border-[var(--primary)] bg-[var(--accent-light)] ring-1 ring-[color:var(--focus-ring)]"
+          : "border-[var(--border)] bg-[var(--surface-muted)]"
+      }`}
+    >
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onSelect}
+          title={selectTitle}
+          className={selectionButtonClassName(isSelected)}
+          aria-pressed={isSelected}
+        >
+          {isSelected ? (
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--on-primary)]" />
+          ) : null}
+        </button>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="shrink-0 rounded-md border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[var(--muted)]">
+              {fileTypeLabel}
+            </span>
+          </div>
+          <p className="mt-2 break-words text-sm font-medium leading-snug text-[var(--foreground)]">
+            {title}
+          </p>
+          <p className="mt-1 break-words text-xs leading-relaxed text-[var(--subtle)]">{subtitle}</p>
+        </div>
+      </div>
+
+      {children ? (
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3 sm:mt-2 sm:justify-end sm:border-0 sm:pt-0">
+          {children}
+        </div>
+      ) : null}
+    </li>
+  );
+}
 
 export function TemplatesPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -145,9 +220,9 @@ export function TemplatesPanel() {
   }
 
   return (
-    <div className="flex min-h-[280px] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-6">
+    <div className="flex min-h-[280px] min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <h2 className="font-semibold text-[var(--foreground)]">Шаблоны</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">PPTX/PDF — выберите активный шаблон</p>
         </div>
@@ -155,7 +230,7 @@ export function TemplatesPanel() {
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className="w-full shrink-0 rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-dark)] disabled:opacity-60 sm:w-auto sm:py-1.5"
+          className="w-full shrink-0 rounded-lg bg-[var(--primary)] px-3 py-2.5 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-dark)] disabled:opacity-60 sm:w-auto sm:py-1.5"
         >
           {isUploading ? "Загрузка…" : "Загрузить"}
         </button>
@@ -168,86 +243,41 @@ export function TemplatesPanel() {
         />
       </div>
 
-      {error ? (
-        <ErrorMessage className="mt-3">{error}</ErrorMessage>
-      ) : null}
+      {error ? <ErrorMessage className="mt-3">{error}</ErrorMessage> : null}
 
-      <div className="mt-4 flex-1">
+      <div className="mt-4 min-h-0 flex-1">
         {isLoading ? (
           <p className="text-sm text-[var(--subtle)]">Загрузка списка…</p>
         ) : (
-          <ul className="max-h-48 space-y-2 overflow-y-auto pr-1">
-            <li
-              className={`flex flex-col gap-2 rounded-lg border px-3 py-2 sm:flex-row sm:items-center ${
-                isDefaultSelected
-                  ? "border-[var(--primary)] bg-[var(--accent-light)] ring-1 ring-[color:var(--focus-ring)]"
-                  : "border-[var(--border)] bg-[var(--surface-muted)]"
-              }`}
-            >
-              <div className="flex min-w-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => selectTemplate(null)}
-                title="Использовать шаблон ДВФУ по умолчанию"
-                className={`shrink-0 h-4 w-4 rounded-full border-2 flex items-center justify-center ${
-                  isDefaultSelected
-                    ? "border-[var(--primary)] bg-[var(--primary)]"
-                    : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--primary)]"
-                }`}
-              >
-                {isDefaultSelected ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--on-primary)]" />
-                ) : null}
-              </button>
-              <span className="shrink-0 rounded-md border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[var(--muted)]">
-                ДВФУ
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-[var(--foreground)]">
-                  Шаблон по умолчанию
-                </p>
-                <p className="truncate text-xs text-[var(--subtle)]">
-                  Используется без загрузки файла
-                </p>
-              </div>
-              </div>
-            </li>
+          <ul className="max-h-[min(360px,50vh)] space-y-2 overflow-y-auto overscroll-contain pr-1 sm:max-h-48">
+            <TemplateRow
+              isSelected={isDefaultSelected}
+              fileTypeLabel="ДВФУ"
+              title="Шаблон по умолчанию"
+              subtitle="Используется без загрузки файла"
+              onSelect={() => selectTemplate(null)}
+              selectTitle="Использовать шаблон ДВФУ по умолчанию"
+            />
+
             {templates.length === 0 ? (
-              <li className="px-1 text-sm text-[var(--subtle)]">
+              <li className="px-1 py-2 text-sm leading-relaxed text-[var(--subtle)]">
                 Пользовательских шаблонов пока нет. Можно использовать ДВФУ или загрузить свой.
               </li>
             ) : null}
+
             {templates.map((template) => {
               const isSelected = selectedTemplateId === template.id;
-              return (
-              <li
-                key={template.id}
-                className={`flex flex-col gap-2 rounded-lg border px-3 py-2 sm:flex-row sm:items-center ${
-                  isSelected
-                    ? "border-[var(--primary)] bg-[var(--accent-light)] ring-1 ring-[color:var(--focus-ring)]"
-                    : "border-[var(--border)] bg-[var(--surface-muted)]"
-                }`}
-              >
-                <div className="flex min-w-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => selectTemplate(isSelected ? null : template)}
-                  title={isSelected ? "Снять выбор" : "Использовать шаблон"}
-                  className={`shrink-0 h-4 w-4 rounded-full border-2 flex items-center justify-center ${
-                    isSelected
-                      ? "border-[var(--primary)] bg-[var(--primary)]"
-                      : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--primary)]"
-                  }`}
-                >
-                  {isSelected ? (
-                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--on-primary)]" />
-                  ) : null}
-                </button>
-                <span className="shrink-0 rounded-md border border-[var(--border)] bg-[var(--surface)] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[var(--muted)]">
-                  {template.file_type}
-                </span>
-                <div className="min-w-0 flex-1">
-                  {editingId === template.id ? (
+
+              if (editingId === template.id) {
+                return (
+                  <li
+                    key={template.id}
+                    className={`rounded-lg border px-3 py-3 ${
+                      isSelected
+                        ? "border-[var(--primary)] bg-[var(--accent-light)] ring-1 ring-[color:var(--focus-ring)]"
+                        : "border-[var(--border)] bg-[var(--surface-muted)]"
+                    }`}
+                  >
                     <div className="flex items-center gap-1">
                       <input
                         type="text"
@@ -255,7 +285,7 @@ export function TemplatesPanel() {
                         onChange={(event) => setEditingName(event.target.value)}
                         maxLength={255}
                         disabled={renamingId === template.id}
-                        className="w-full min-w-0 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[color:var(--focus-ring)]"
+                        className="w-full min-w-0 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[color:var(--focus-ring)]"
                         onKeyDown={(event) => {
                           if (event.key === "Enter") {
                             event.preventDefault();
@@ -283,42 +313,44 @@ export function TemplatesPanel() {
                         ✕
                       </button>
                     </div>
-                  ) : (
-                    <p className="truncate text-sm font-medium text-[var(--foreground)]">{template.name}</p>
-                  )}
-                  <p className="truncate text-xs text-[var(--subtle)]">
-                    {formatFileSize(template.size_bytes)}
-                  </p>
-                </div>
-                </div>
-                {editingId !== template.id ? (
-                  <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 pl-6 sm:pl-0">
+                  </li>
+                );
+              }
+
+              return (
+                <TemplateRow
+                  key={template.id}
+                  isSelected={isSelected}
+                  fileTypeLabel={template.file_type}
+                  title={template.name}
+                  subtitle={formatFileSize(template.size_bytes)}
+                  onSelect={() => selectTemplate(isSelected ? null : template)}
+                  selectTitle={isSelected ? "Снять выбор" : "Использовать шаблон"}
+                >
                   <button
                     type="button"
                     onClick={() => startEditing(template)}
-                    className="text-xs font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
+                    className={`${itemActionClassName()} border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--foreground)] sm:border-0 sm:bg-transparent`}
                   >
                     Имя
                   </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownload(template)}
-                  className="text-xs font-medium text-[var(--primary)] hover:text-[var(--primary-dark)]"
-                >
-                  Скачать
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(template.id)}
-                  disabled={deletingId === template.id}
-                  className="text-xs font-medium text-[var(--danger-text)] hover:opacity-80 disabled:opacity-50"
-                >
-                  {deletingId === template.id ? "…" : "Удалить"}
-                </button>
-                  </div>
-                ) : null}
-              </li>
-            );
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(template)}
+                    className={`${itemActionClassName()} border border-[var(--border)] bg-[var(--surface)] text-[var(--primary)] hover:text-[var(--primary-dark)] sm:border-0 sm:bg-transparent`}
+                  >
+                    Скачать
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(template.id)}
+                    disabled={deletingId === template.id}
+                    className={`${itemActionClassName()} border border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger-text)] hover:opacity-80 disabled:opacity-50 sm:border-0 sm:bg-transparent`}
+                  >
+                    {deletingId === template.id ? "…" : "Удалить"}
+                  </button>
+                </TemplateRow>
+              );
             })}
           </ul>
         )}
